@@ -511,9 +511,16 @@
     }
 
     const cloudData = data?.data ? mergeWithDefaults(data.data) : null;
-    if(cloudData){
-      DATA = mergeDeep(cloudData, DATA);
-    }
+    if (cloudData) {
+  if (!hasLoadedFromCloud) {
+    // ✅ 第一次登入：雲端 → 本機
+    DATA = mergeDeep(DATA, cloudData);
+    hasLoadedFromCloud = true;
+  } else {
+    // 之後正常操作：本機 → 雲端
+    DATA = mergeDeep(cloudData, DATA);
+  }
+}
     saveLocal();
     renderAll();
 
