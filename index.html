@@ -46,7 +46,7 @@
     @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
 
     .card{background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-      border:1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 28px rgba(0,0,0,.35); overflow:hidden;}
+      border:1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow:hidden;}
     .hd{padding:14px 14px 10px 14px; border-bottom:1px solid var(--line); background: rgba(0,0,0,.12);
       display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
     .label{font-weight:700; font-size:13px}
@@ -70,7 +70,7 @@
     .modalBackdrop{position:fixed; inset:0; background: rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; padding:18px; z-index:100;}
     .modal{width:min(760px, 96vw); max-height: 86vh; overflow:auto;
       background: linear-gradient(180deg, rgba(15,27,49,.98), rgba(15,27,49,.92));
-      border:1px solid var(--line); border-radius: 18px; box-shadow: 0 12px 28px rgba(0,0,0,.35);}
+      border:1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow);}
     .modalHd{position:sticky; top:0; background: rgba(0,0,0,.18); border-bottom:1px solid var(--line);
       padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
     .modalTitle{font-weight:800; font-size:13px}
@@ -81,7 +81,7 @@
     .tmplName{font-size:13px; font-weight:650; line-height:1.25; word-break:break-word}
 
     .toast{position:fixed; left:50%; bottom:20px; transform:translateX(-50%);
-      background: rgba(15,27,49,.96); border:1px solid var(--line); box-shadow: 0 12px 28px rgba(0,0,0,.35);
+      background: rgba(15,27,49,.96); border:1px solid var(--line); box-shadow: var(--shadow);
       padding:10px 12px; border-radius: 12px; color: var(--text); font-size:12px; display:none; z-index:120;}
   </style>
 </head>
@@ -237,6 +237,7 @@
       dy_island: "無人島開拓：每日"
     };
 
+    // 用 id 儲存：你日後改名稱不會弄丟紀錄
     const WEEKLY_ITEMS = [
       { id:"wk_repeatable",        name: () => UI_TEXT.wk_repeatable },
       { id:"wk_hunt",              name: () => UI_TEXT.wk_hunt },
@@ -363,6 +364,7 @@
     let DATA = loadLocal();
 
     // ---------- Supabase ----------
+    // ⚠️ 改名：避免跟 SDK 的全域 supabase 衝突
     let supabaseClient = null;
     let currentUser = null;
 
@@ -376,7 +378,7 @@
       el.textContent = msg;
       el.style.display = 'block';
       clearTimeout(toast._t);
-      toast._t = setTimeout(()=> el.style.display='none', 1500);
+      toast._t = setTimeout(()=> el.style.display='none', 1400);
     }
 
     function setAuthUI(){
@@ -393,40 +395,13 @@
 
     function setSyncState(text){ syncStateEl.textContent = text; }
 
-    function cleanUrlToPathOnly(){
-      history.replaceState({}, document.title, window.location.pathname);
-    }
-
     async function initSupabase(){
       const ok = SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes('PASTE_');
       if(!ok){
         setSyncState('未設定 Supabase');
         return;
       }
-
       supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-      // ★處理 OAuth 回跳：把 URL 裡的 token/code 存成 session，並清掉 URL
-      try{
-        const hasCode = new URLSearchParams(window.location.search).get('code');
-        const hasAccessToken = window.location.hash.includes('access_token=');
-
-        if(hasCode){
-          const { error } = await supabaseClient.auth.exchangeCodeForSession(window.location.href);
-          if(error) console.warn('exchangeCodeForSession error:', error);
-          cleanUrlToPathOnly();
-        } else if(hasAccessToken){
-          const { error } = await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
-          if(error) console.warn('getSessionFromUrl error:', error);
-          cleanUrlToPathOnly();
-        } else if (window.location.hash.length > 1 || window.location.search.length > 1){
-          // 有怪 hash/query 也清掉，避免污染下一次 redirectTo
-          cleanUrlToPathOnly();
-        }
-      }catch(e){
-        console.warn('OAuth callback handling failed:', e);
-        cleanUrlToPathOnly();
-      }
 
       const { data: { session } } = await supabaseClient.auth.getSession();
       currentUser = session?.user ?? null;
@@ -453,27 +428,15 @@
 
     async function loginDiscord(){
       if(!supabaseClient){ toast('請先設定 Supabase'); return; }
-
-      // ★避免把舊 token/hash 帶進 redirectTo，造成 ##access_token 疊加
-      cleanUrlToPathOnly();
-
-      // ★redirectTo 一律乾淨（不含 # 不含 ?）
-      const redirectTo = window.location.origin + window.location.pathname;
-
-      const { error } = await supabaseClient.auth.signInWithOAuth({
+      const redirectTo = "https://bennycheung1019.github.io/ffxiv-todo-tc/";
+      await supabaseClient.auth.signInWithOAuth({
         provider: 'discord',
         options: { redirectTo }
       });
-
-      if(error){
-        console.warn(error);
-        toast('登入啟動失敗');
-      }
     }
 
     async function logout(){
       if(!supabaseClient) return;
-      await flushCloudSave(); // 登出前盡量補最後一次
       await supabaseClient.auth.signOut();
       currentUser = null;
       setAuthUI();
@@ -500,7 +463,6 @@
       const cloudData = data?.data ? mergeWithDefaults(data.data) : null;
 
       if(cloudData){
-        // 雲端做 base，本機做 overlay（你剛勾的優先不被舊雲端蓋掉）
         DATA = mergeDeep(cloudData, DATA);
       }
       saveLocal();
@@ -530,12 +492,11 @@
         return cloudSaveNow();
       }
       clearTimeout(_saveTimer);
-      _saveTimer = setTimeout(cloudSaveNow, 200); // ★更即時
+      _saveTimer = setTimeout(cloudSaveNow, 600);
     }
 
     async function cloudSaveNow(){
       if(!supabaseClient || !currentUser) return;
-
       setSyncState('同步中…');
 
       const payload = {
@@ -554,13 +515,6 @@
         return;
       }
       setSyncState('已啟用');
-    }
-
-    async function flushCloudSave(){
-      if(!supabaseClient || !currentUser) return;
-      clearTimeout(_saveTimer);
-      _saveTimer = null;
-      await cloudSaveNow();
     }
 
     // ---------- UI refs ----------
@@ -753,12 +707,6 @@
         cloudSaveDebounced(false);
       }
     }, 1000);
-
-    // ★使用者直接離開/切背景也盡量存一次（避免 debounce 還沒送出）
-    window.addEventListener('pagehide', () => { flushCloudSave(); });
-    document.addEventListener('visibilitychange', () => {
-      if(document.visibilityState === 'hidden'){ flushCloudSave(); }
-    });
   </script>
 </body>
 </html>
