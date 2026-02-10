@@ -192,13 +192,13 @@
 
   <script>
     // ==========================================================
-    // ✅ 你只要改這兩個：Supabase 專案資訊
+    // ✅ Supabase 專案資訊
     // ==========================================================
     const SUPABASE_URL = "https://jzmeftlkxcmicubtvvjl.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6bWVmdGxreGNtaWN1YnR2dmpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MDU5NDAsImV4cCI6MjA4NjI4MTk0MH0._OdK5K7BD0GlGyki86fW-qO-4RVAAtng2VJ-LYWY4Yk";
 
     // ==========================================================
-    // ✅ 只要改這段：所有顯示名稱（你之後可自行校正官方詞）
+    // ✅ 所有顯示名稱（你之後可自行校正官方詞）
     // ==========================================================
     const UI_TEXT = {
       // Weekly
@@ -337,18 +337,6 @@
       checked: {} // periodKey -> { itemId: true }
     };
 
-    function loadLocal(){
-      try{
-        const raw = localStorage.getItem(LS_KEY);
-        if(!raw) return structuredClone(DEFAULT_DATA);
-        const parsed = JSON.parse(raw);
-        return mergeWithDefaults(parsed);
-      }catch{
-        return structuredClone(DEFAULT_DATA);
-      }
-    }
-    function saveLocal(){ localStorage.setItem(LS_KEY, JSON.stringify(DATA)); }
-
     function mergeWithDefaults(input){
       const merged = structuredClone(DEFAULT_DATA);
       if(input?.enabled) merged.enabled = Object.assign(merged.enabled, input.enabled);
@@ -361,10 +349,23 @@
       return merged;
     }
 
+    function loadLocal(){
+      try{
+        const raw = localStorage.getItem(LS_KEY);
+        if(!raw) return structuredClone(DEFAULT_DATA);
+        const parsed = JSON.parse(raw);
+        return mergeWithDefaults(parsed);
+      }catch{
+        return structuredClone(DEFAULT_DATA);
+      }
+    }
+    function saveLocal(){ localStorage.setItem(LS_KEY, JSON.stringify(DATA)); }
+
     let DATA = loadLocal();
 
     // ---------- Supabase ----------
-    let supabase = null;
+    // ⚠️ 改名：避免跟 SDK 的全域 supabase 衝突
+    let supabaseClient = null;
     let currentUser = null;
 
     const authStateEl = document.getElementById('authState');
@@ -400,14 +401,13 @@
         setSyncState('未設定 Supabase');
         return;
       }
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-      // 如果 OAuth redirect 回來，supabase 會自動處理 session
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabaseClient.auth.getSession();
       currentUser = session?.user ?? null;
       setAuthUI();
 
-      supabase.auth.onAuthStateChange(async (_event, session2) => {
+      supabaseClient.auth.onAuthStateChange(async (_event, session2) => {
         currentUser = session2?.user ?? null;
         setAuthUI();
         if(currentUser){
@@ -427,30 +427,28 @@
     }
 
     async function loginDiscord(){
-      if(!supabase){ toast('請先設定 Supabase'); return; }
-      // redirectTo：用目前頁面 URL（GitHub Pages 也 OK，但要記得填到 Discord/Supabase 的 callback）
+      if(!supabaseClient){ toast('請先設定 Supabase'); return; }
       const redirectTo = location.origin + location.pathname;
-      await supabase.auth.signInWithOAuth({
+      await supabaseClient.auth.signInWithOAuth({
         provider: 'discord',
         options: { redirectTo }
       });
     }
 
     async function logout(){
-      if(!supabase) return;
-      await supabase.auth.signOut();
+      if(!supabaseClient) return;
+      await supabaseClient.auth.signOut();
       currentUser = null;
       setAuthUI();
       setSyncState('未啟用');
       toast('已登出');
     }
 
-    // 把雲端資料讀下來，並與本機合併（以本機為準做覆蓋）
     async function cloudLoadThenMerge(){
-      if(!supabase || !currentUser) return;
+      if(!supabaseClient || !currentUser) return;
       setSyncState('同步中…');
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('ffxiv_todo')
         .select('data')
         .eq('user_id', currentUser.id)
@@ -465,19 +463,16 @@
       const cloudData = data?.data ? mergeWithDefaults(data.data) : null;
 
       if(cloudData){
-        // merge strategy：以本機 DATA 覆蓋雲端（避免你本機剛勾選就被雲端舊資料蓋掉）
         DATA = mergeDeep(cloudData, DATA);
       }
       saveLocal();
       renderAll();
 
-      // 合併完立刻上傳一次，確保雲端與本機一致
       await cloudSaveDebounced(true);
       setSyncState('已啟用');
     }
 
     function mergeDeep(base, overlay){
-      // 只處理我們的結構：enabled / checked
       const out = structuredClone(base);
       if(overlay?.enabled){
         out.enabled = out.enabled || {};
@@ -492,7 +487,7 @@
 
     let _saveTimer = null;
     async function cloudSaveDebounced(immediate=false){
-      if(!supabase || !currentUser) return;
+      if(!supabaseClient || !currentUser) return;
       if(immediate){
         return cloudSaveNow();
       }
@@ -501,7 +496,7 @@
     }
 
     async function cloudSaveNow(){
-      if(!supabase || !currentUser) return;
+      if(!supabaseClient || !currentUser) return;
       setSyncState('同步中…');
 
       const payload = {
@@ -510,7 +505,7 @@
         updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      const { error } = await supabaseClient
         .from('ffxiv_todo')
         .upsert(payload, { onConflict: 'user_id' });
 
@@ -709,7 +704,6 @@
 
       if(dyPeriodKeyEl.textContent !== newDyPk || wkPeriodKeyEl.textContent !== newWkPk){
         renderAll();
-        // 跨期也要存一下（避免跨裝置顯示不一致）
         cloudSaveDebounced(false);
       }
     }, 1000);
