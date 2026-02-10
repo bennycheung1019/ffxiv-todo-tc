@@ -428,7 +428,7 @@
 
     async function loginDiscord(){
       if(!supabaseClient){ toast('請先設定 Supabase'); return; }
-      const redirectTo = location.origin + location.pathname;
+      const redirectTo = window.location.href;
       await supabaseClient.auth.signInWithOAuth({
         provider: 'discord',
         options: { redirectTo }
