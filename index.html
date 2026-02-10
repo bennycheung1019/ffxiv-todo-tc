@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FFXIV 例行清單（每日/每週）</title>
+  <style>
+    :root{
+      --bg:#0b1220; --text:#e8eefc; --muted:#9fb1d8; --line:rgba(255,255,255,.10);
+      --accent:#6ee7ff; --accent2:#a78bfa; --good:#34d399; --bad:#fb7185;
+      --shadow: 0 12px 28px rgba(0,0,0,.35); --radius: 16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      background: radial-gradient(1200px 600px at 30% -10%, rgba(110,231,255,.18), transparent 60%),
+                  radial-gradient(900px 500px at 90% 10%, rgba(167,139,250,.18), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+    }
+    .wrap{max-width:1200px; margin:0 auto; padding:24px}
+    header{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px;}
+    h1{margin:0; font-size:18px; letter-spacing:.2px}
+    .sub{color:var(--muted); font-size:12px; line-height:1.35}
+    .pillrow{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px; border-radius:999px;
+      background:rgba(255,255,255,.06); border:1px solid var(--line);
+      font-size:12px; color:var(--muted);
+    }
+    .btn{
+      appearance:none; border:1px solid var(--line); background: rgba(255,255,255,.05); color: var(--text);
+      padding:8px 10px; border-radius: 12px; font-size:12px; cursor:pointer;
+      transition: transform .05s ease, background .15s ease; user-select:none; white-space:nowrap;
+    }
+    .btn:hover{background: rgba(255,255,255,.08)}
+    .btn:active{transform: translateY(1px)}
+    .btn.primary{border-color: rgba(110,231,255,.35); background: rgba(110,231,255,.12)}
+    .btn.primary2{border-color: rgba(167,139,250,.35); background: rgba(167,139,250,.12)}
+    .btn.danger{border-color: rgba(251,113,133,.35); background: rgba(251,113,133,.10)}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace}
+
+    .grid{display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start;}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
+
+    .card{background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow:hidden;}
+    .hd{padding:14px 14px 10px 14px; border-bottom:1px solid var(--line); background: rgba(0,0,0,.12);
+      display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+    .label{font-weight:700; font-size:13px}
+    .meta{font-size:12px; color:var(--muted); display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .body{padding:12px 14px 14px 14px}
+
+    .progress{height:10px; background: rgba(255,255,255,.06); border:1px solid var(--line); border-radius: 999px; overflow:hidden; margin-top: 8px;}
+    .bar{height:100%; width:0%; background: linear-gradient(90deg, var(--accent), var(--accent2))}
+    .kpi{display:flex; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap}
+    .kpi .k{font-size:12px; color:var(--muted)}
+    .kpi .v{font-size:12px}
+
+    .list{display:flex; flex-direction:column; gap:8px; margin-top:12px}
+    .item{display:flex; gap:10px; align-items:flex-start; padding:10px 10px; border:1px solid var(--line);
+      border-radius: 14px; background: rgba(0,0,0,.10);}
+    .item:hover{background: rgba(0,0,0,.14)}
+    .ck{margin-top:2px; width:18px; height:18px; accent-color: var(--accent); cursor:pointer;}
+    .name{font-size:13px; font-weight:650; line-height:1.25; word-break:break-word}
+
+    /* Modal */
+    .modalBackdrop{position:fixed; inset:0; background: rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; padding:18px; z-index:100;}
+    .modal{width:min(760px, 96vw); max-height: 86vh; overflow:auto;
+      background: linear-gradient(180deg, rgba(15,27,49,.98), rgba(15,27,49,.92));
+      border:1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow);}
+    .modalHd{position:sticky; top:0; background: rgba(0,0,0,.18); border-bottom:1px solid var(--line);
+      padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+    .modalTitle{font-weight:800; font-size:13px}
+    .modalBody{padding:12px 14px 14px 14px}
+    .tmplList{display:flex; flex-direction:column; gap:8px}
+    .tmplItem{display:flex; align-items:center; justify-content:space-between; gap:10px; border:1px solid var(--line);
+      border-radius: 12px; padding:10px 10px; background: rgba(255,255,255,.03);}
+    .tmplName{font-size:13px; font-weight:650; line-height:1.25; word-break:break-word}
+
+    .toast{position:fixed; left:50%; bottom:20px; transform:translateX(-50%);
+      background: rgba(15,27,49,.96); border:1px solid var(--line); box-shadow: var(--shadow);
+      padding:10px 12px; border-radius: 12px; color: var(--text); font-size:12px; display:none; z-index:120;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>FFXIV 例行清單（每日 / 每週）</h1>
+        <div class="sub">重置時間（HKT）：每日 23:00｜每週二 16:00</div>
+        <div class="pillrow">
+          <div class="pill">登入狀態：<b id="authState">未登入</b></div>
+          <div class="pill">雲端同步：<b id="syncState">未啟用</b></div>
+        </div>
+      </div>
+      <div class="pillrow">
+        <button class="btn primary" id="btnLogin">Discord 登入</button>
+        <button class="btn danger" id="btnLogout" style="display:none;">登出</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- DAILY (LEFT) -->
+      <section class="card">
+        <div class="hd">
+          <div>
+            <div class="label">每日清單</div>
+            <div class="meta">
+              <span class="mono" id="dyPeriodKey"></span>
+              <span>｜距離下次重置：<b id="dyCountdown">—</b></span>
+            </div>
+          </div>
+          <div class="pillrow">
+            <button class="btn primary" id="dyManage">加入/移除項目</button>
+            <button class="btn" id="dyUncheck">取消本期全部勾選</button>
+          </div>
+        </div>
+        <div class="body">
+          <div class="progress"><div class="bar" id="dyBar"></div></div>
+          <div class="kpi">
+            <div><span class="k">完成</span> <span class="v"><b id="dyDone">0</b>/<b id="dyTotal">0</b></span></div>
+            <div><span class="k">完成率</span> <span class="v"><b id="dyPct">0%</b></span></div>
+          </div>
+          <div class="list" id="dyList"></div>
+        </div>
+      </section>
+
+      <!-- WEEKLY (RIGHT) -->
+      <section class="card">
+        <div class="hd">
+          <div>
+            <div class="label">每週清單</div>
+            <div class="meta">
+              <span class="mono" id="wkPeriodKey"></span>
+              <span>｜距離下次重置：<b id="wkCountdown">—</b></span>
+            </div>
+          </div>
+          <div class="pillrow">
+            <button class="btn primary2" id="wkManage">加入/移除項目</button>
+            <button class="btn" id="wkUncheck">取消本期全部勾選</button>
+          </div>
+        </div>
+        <div class="body">
+          <div class="progress"><div class="bar" id="wkBar"></div></div>
+          <div class="kpi">
+            <div><span class="k">完成</span> <span class="v"><b id="wkDone">0</b>/<b id="wkTotal">0</b></span></div>
+            <div><span class="k">完成率</span> <span class="v"><b id="wkPct">0%</b></span></div>
+          </div>
+          <div class="list" id="wkList"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Daily Modal -->
+  <div class="modalBackdrop" id="dyModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="每日項目管理">
+      <div class="modalHd">
+        <div class="modalTitle">每日：加入/移除項目</div>
+        <div class="pillrow">
+          <button class="btn" id="dyEnableAll">全部加入</button>
+          <button class="btn" id="dyDisableAll">全部移除</button>
+          <button class="btn" id="dyClose">關閉</button>
+        </div>
+      </div>
+      <div class="modalBody"><div class="tmplList" id="dyTemplates"></div></div>
+    </div>
+  </div>
+
+  <!-- Weekly Modal -->
+  <div class="modalBackdrop" id="wkModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="每週項目管理">
+      <div class="modalHd">
+        <div class="modalTitle">每週：加入/移除項目</div>
+        <div class="pillrow">
+          <button class="btn" id="wkEnableAll">全部加入</button>
+          <button class="btn" id="wkDisableAll">全部移除</button>
+          <button class="btn" id="wkClose">關閉</button>
+        </div>
+      </div>
+      <div class="modalBody"><div class="tmplList" id="wkTemplates"></div></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Supabase JS (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    // ==========================================================
+    // ✅ 你只要改這兩個：Supabase 專案資訊
+    // ==========================================================
+    const SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL";
+    const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY";
+
+    // ==========================================================
+    // ✅ 只要改這段：所有顯示名稱（你之後可自行校正官方詞）
+    // ==========================================================
+    const UI_TEXT = {
+      // Weekly
+      wk_repeatable: "每週可重複任務",
+      wk_hunt: "每週狩獵標記",
+      wk_squadron_priority: "分隊：優先任務",
+      wk_challenge_log: "挑戰筆記",
+      wk_custom_delivery: "自訂交付 / 客製交付",
+      wk_wondrous_tails: "天書奇談",
+      wk_normal_lockout: "普通團隊副本：每週獎勵限制",
+      wk_savage_lockout: "零式團隊副本：每週獎勵限制",
+      wk_alliance_lockout: "24人團隊副本：每週獎勵限制",
+      wk_faux_hollows: "幻巧（幻巧戰/幻巧葉/幻巧拼圖）",
+      wk_tomestone_cap: "（週限）神典石：取得上限",
+      wk_doman: "多瑪飛地：捐獻",
+      wk_masked: "假面狂歡（每週目標）",
+      wk_blue_log: "青魔：青魔記錄 / 青魔日誌",
+      wk_gold_tourney: "金碟遊樂場：錦標賽",
+      wk_fashion: "時尚品鑑 / 時尚品鑒",
+      wk_jumbo: "仙人仙彩",
+      wk_island: "無人島開拓：每週",
+
+      // Daily
+      dy_repeatable: "每日可重複任務",
+      dy_hunt: "每日狩獵標記",
+      dy_squadron: "分隊：派遣任務",
+      dy_gc_turnins: "籌備任務（大國防聯軍交納品）",
+      dy_fc_voyage: "公會：遠征（飛空艇/潛水艇）",
+      dy_retainer: "雇員探險（委託雇員冒險）",
+      dy_housing: "住宅：園藝/種植",
+      dy_tribal: "友好部族任務",
+      dy_treasure_map: "藏寶圖：取得次數",
+      dy_leve: "行會理符：理符承接次數",
+      dy_roulettes: "隨機任務（任務搜尋器）",
+      dy_mini: "金碟遊樂場：小仙人掌彩券",
+      dy_island: "無人島開拓：每日"
+    };
+
+    // 用 id 儲存：你日後改名稱不會弄丟紀錄
+    const WEEKLY_ITEMS = [
+      { id:"wk_repeatable",        name: () => UI_TEXT.wk_repeatable },
+      { id:"wk_hunt",              name: () => UI_TEXT.wk_hunt },
+      { id:"wk_squadron_priority", name: () => UI_TEXT.wk_squadron_priority },
+      { id:"wk_challenge_log",     name: () => UI_TEXT.wk_challenge_log },
+      { id:"wk_custom_delivery",   name: () => UI_TEXT.wk_custom_delivery },
+      { id:"wk_wondrous_tails",    name: () => UI_TEXT.wk_wondrous_tails },
+      { id:"wk_normal_lockout",    name: () => UI_TEXT.wk_normal_lockout },
+      { id:"wk_savage_lockout",    name: () => UI_TEXT.wk_savage_lockout },
+      { id:"wk_alliance_lockout",  name: () => UI_TEXT.wk_alliance_lockout },
+      { id:"wk_faux_hollows",      name: () => UI_TEXT.wk_faux_hollows },
+      { id:"wk_tomestone_cap",     name: () => UI_TEXT.wk_tomestone_cap },
+      { id:"wk_doman",             name: () => UI_TEXT.wk_doman },
+      { id:"wk_masked",            name: () => UI_TEXT.wk_masked },
+      { id:"wk_blue_log",          name: () => UI_TEXT.wk_blue_log },
+      { id:"wk_gold_tourney",      name: () => UI_TEXT.wk_gold_tourney },
+      { id:"wk_fashion",           name: () => UI_TEXT.wk_fashion },
+      { id:"wk_jumbo",             name: () => UI_TEXT.wk_jumbo },
+      { id:"wk_island",            name: () => UI_TEXT.wk_island }
+    ];
+
+    const DAILY_ITEMS = [
+      { id:"dy_repeatable",   name: () => UI_TEXT.dy_repeatable },
+      { id:"dy_hunt",         name: () => UI_TEXT.dy_hunt },
+      { id:"dy_squadron",     name: () => UI_TEXT.dy_squadron },
+      { id:"dy_gc_turnins",   name: () => UI_TEXT.dy_gc_turnins },
+      { id:"dy_fc_voyage",    name: () => UI_TEXT.dy_fc_voyage },
+      { id:"dy_retainer",     name: () => UI_TEXT.dy_retainer },
+      { id:"dy_housing",      name: () => UI_TEXT.dy_housing },
+      { id:"dy_tribal",       name: () => UI_TEXT.dy_tribal },
+      { id:"dy_treasure_map", name: () => UI_TEXT.dy_treasure_map },
+      { id:"dy_leve",         name: () => UI_TEXT.dy_leve },
+      { id:"dy_roulettes",    name: () => UI_TEXT.dy_roulettes },
+      { id:"dy_mini",         name: () => UI_TEXT.dy_mini },
+      { id:"dy_island",       name: () => UI_TEXT.dy_island }
+    ];
+
+    // ---------- HKT 時間 ----------
+    const TZ_OFFSET_MIN = 8 * 60;
+    const DAILY_RESET_HOUR = 23, DAILY_RESET_MIN = 0;
+    const WEEKLY_RESET_DOW = 2, WEEKLY_RESET_HOUR = 16, WEEKLY_RESET_MIN = 0;
+
+    function nowUtcMs(){ return Date.now(); }
+    function toTzDate(msUtc){ return new Date(msUtc + TZ_OFFSET_MIN * 60 * 1000); }
+    function fromTzPartsToUtcMs(y, m, d, hh, mm){
+      const ms = Date.UTC(y, m, d, hh, mm, 0, 0);
+      return ms - TZ_OFFSET_MIN * 60 * 1000;
+    }
+    function fmt2(n){ return String(n).padStart(2,'0'); }
+
+    function periodStartDailyUtcMs(msUtc){
+      const t = toTzDate(msUtc);
+      const y=t.getUTCFullYear(), m=t.getUTCMonth(), d=t.getUTCDate();
+      const todayResetUtc = fromTzPartsToUtcMs(y,m,d,DAILY_RESET_HOUR,DAILY_RESET_MIN);
+      if (msUtc >= todayResetUtc) return todayResetUtc;
+      const yest = new Date(Date.UTC(y,m,d) - 24*3600*1000);
+      return fromTzPartsToUtcMs(yest.getUTCFullYear(), yest.getUTCMonth(), yest.getUTCDate(), DAILY_RESET_HOUR, DAILY_RESET_MIN);
+    }
+    function nextResetDailyUtcMs(msUtc){ return periodStartDailyUtcMs(msUtc) + 24*3600*1000; }
+
+    function periodStartWeeklyUtcMs(msUtc){
+      const t = toTzDate(msUtc);
+      const y=t.getUTCFullYear(), m=t.getUTCMonth(), d=t.getUTCDate();
+      const dow=t.getUTCDay();
+      const daysSinceTue=(dow - WEEKLY_RESET_DOW + 7) % 7;
+      const thisTue=new Date(Date.UTC(y,m,d) - daysSinceTue*24*3600*1000);
+      const thisTueResetUtc = fromTzPartsToUtcMs(thisTue.getUTCFullYear(), thisTue.getUTCMonth(), thisTue.getUTCDate(), WEEKLY_RESET_HOUR, WEEKLY_RESET_MIN);
+      if (msUtc >= thisTueResetUtc) return thisTueResetUtc;
+      return thisTueResetUtc - 7*24*3600*1000;
+    }
+    function nextResetWeeklyUtcMs(msUtc){ return periodStartWeeklyUtcMs(msUtc) + 7*24*3600*1000; }
+
+    function periodKey(mode, msUtc){
+      const start = (mode==='daily') ? periodStartDailyUtcMs(msUtc) : periodStartWeeklyUtcMs(msUtc);
+      const t = toTzDate(start);
+      const y=t.getUTCFullYear(), m=t.getUTCMonth()+1, d=t.getUTCDate(), hh=t.getUTCHours(), mm=t.getUTCMinutes();
+      return `${mode}:${y}-${fmt2(m)}-${fmt2(d)} ${fmt2(hh)}:${fmt2(mm)} (HKT)`;
+    }
+    function formatCountdown(ms){
+      ms = Math.max(0, ms);
+      const s = Math.floor(ms/1000);
+      const dd = Math.floor(s/86400);
+      const hh = Math.floor((s%86400)/3600);
+      const mm = Math.floor((s%3600)/60);
+      if (dd>0) return `${dd}天 ${hh}小時 ${mm}分`;
+      if (hh>0) return `${hh}小時 ${mm}分`;
+      return `${mm}分`;
+    }
+
+    // ---------- Storage (local fallback + cloud) ----------
+    const LS_KEY = 'ffxiv_todo_local_cache_v1';
+    const DEFAULT_DATA = {
+      enabled: {
+        weekly: Object.fromEntries(WEEKLY_ITEMS.map(x => [x.id, true])),
+        daily:  Object.fromEntries(DAILY_ITEMS.map(x => [x.id, true]))
+      },
+      checked: {} // periodKey -> { itemId: true }
+    };
+
+    function loadLocal(){
+      try{
+        const raw = localStorage.getItem(LS_KEY);
+        if(!raw) return structuredClone(DEFAULT_DATA);
+        const parsed = JSON.parse(raw);
+        return mergeWithDefaults(parsed);
+      }catch{
+        return structuredClone(DEFAULT_DATA);
+      }
+    }
+    function saveLocal(){ localStorage.setItem(LS_KEY, JSON.stringify(DATA)); }
+
+    function mergeWithDefaults(input){
+      const merged = structuredClone(DEFAULT_DATA);
+      if(input?.enabled) merged.enabled = Object.assign(merged.enabled, input.enabled);
+      if(input?.checked) merged.checked = input.checked;
+
+      merged.enabled.weekly ||= {};
+      merged.enabled.daily  ||= {};
+      for(const it of WEEKLY_ITEMS) if(!(it.id in merged.enabled.weekly)) merged.enabled.weekly[it.id]=true;
+      for(const it of DAILY_ITEMS)  if(!(it.id in merged.enabled.daily))  merged.enabled.daily[it.id]=true;
+      return merged;
+    }
+
+    let DATA = loadLocal();
+
+    // ---------- Supabase ----------
+    let supabase = null;
+    let currentUser = null;
+
+    const authStateEl = document.getElementById('authState');
+    const syncStateEl = document.getElementById('syncState');
+    const btnLogin = document.getElementById('btnLogin');
+    const btnLogout = document.getElementById('btnLogout');
+
+    function toast(msg){
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.style.display = 'block';
+      clearTimeout(toast._t);
+      toast._t = setTimeout(()=> el.style.display='none', 1400);
+    }
+
+    function setAuthUI(){
+      if(currentUser){
+        authStateEl.textContent = '已登入';
+        btnLogin.style.display = 'none';
+        btnLogout.style.display = '';
+      }else{
+        authStateEl.textContent = '未登入';
+        btnLogin.style.display = '';
+        btnLogout.style.display = 'none';
+      }
+    }
+
+    function setSyncState(text){ syncStateEl.textContent = text; }
+
+    async function initSupabase(){
+      const ok = SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes('PASTE_');
+      if(!ok){
+        setSyncState('未設定 Supabase');
+        return;
+      }
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      // 如果 OAuth redirect 回來，supabase 會自動處理 session
+      const { data: { session } } = await supabase.auth.getSession();
+      currentUser = session?.user ?? null;
+      setAuthUI();
+
+      supabase.auth.onAuthStateChange(async (_event, session2) => {
+        currentUser = session2?.user ?? null;
+        setAuthUI();
+        if(currentUser){
+          await cloudLoadThenMerge();
+          setSyncState('已啟用');
+        }else{
+          setSyncState('未啟用');
+        }
+      });
+
+      if(currentUser){
+        await cloudLoadThenMerge();
+        setSyncState('已啟用');
+      }else{
+        setSyncState('未啟用');
+      }
+    }
+
+    async function loginDiscord(){
+      if(!supabase){ toast('請先設定 Supabase'); return; }
+      // redirectTo：用目前頁面 URL（GitHub Pages 也 OK，但要記得填到 Discord/Supabase 的 callback）
+      const redirectTo = location.origin + location.pathname;
+      await supabase.auth.signInWithOAuth({
+        provider: 'discord',
+        options: { redirectTo }
+      });
+    }
+
+    async function logout(){
+      if(!supabase) return;
+      await supabase.auth.signOut();
+      currentUser = null;
+      setAuthUI();
+      setSyncState('未啟用');
+      toast('已登出');
+    }
+
+    // 把雲端資料讀下來，並與本機合併（以本機為準做覆蓋）
+    async function cloudLoadThenMerge(){
+      if(!supabase || !currentUser) return;
+      setSyncState('同步中…');
+
+      const { data, error } = await supabase
+        .from('ffxiv_todo')
+        .select('data')
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+
+      if(error){
+        console.warn(error);
+        setSyncState('讀取失敗');
+        return;
+      }
+
+      const cloudData = data?.data ? mergeWithDefaults(data.data) : null;
+
+      if(cloudData){
+        // merge strategy：以本機 DATA 覆蓋雲端（避免你本機剛勾選就被雲端舊資料蓋掉）
+        DATA = mergeDeep(cloudData, DATA);
+      }
+      saveLocal();
+      renderAll();
+
+      // 合併完立刻上傳一次，確保雲端與本機一致
+      await cloudSaveDebounced(true);
+      setSyncState('已啟用');
+    }
+
+    function mergeDeep(base, overlay){
+      // 只處理我們的結構：enabled / checked
+      const out = structuredClone(base);
+      if(overlay?.enabled){
+        out.enabled = out.enabled || {};
+        out.enabled.weekly = Object.assign(out.enabled.weekly || {}, overlay.enabled.weekly || {});
+        out.enabled.daily  = Object.assign(out.enabled.daily  || {}, overlay.enabled.daily  || {});
+      }
+      if(overlay?.checked){
+        out.checked = Object.assign(out.checked || {}, overlay.checked || {});
+      }
+      return mergeWithDefaults(out);
+    }
+
+    let _saveTimer = null;
+    async function cloudSaveDebounced(immediate=false){
+      if(!supabase || !currentUser) return;
+      if(immediate){
+        return cloudSaveNow();
+      }
+      clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(cloudSaveNow, 600);
+    }
+
+    async function cloudSaveNow(){
+      if(!supabase || !currentUser) return;
+      setSyncState('同步中…');
+
+      const payload = {
+        user_id: currentUser.id,
+        data: DATA,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase
+        .from('ffxiv_todo')
+        .upsert(payload, { onConflict: 'user_id' });
+
+      if(error){
+        console.warn(error);
+        setSyncState('同步失敗');
+        return;
+      }
+      setSyncState('已啟用');
+    }
+
+    // ---------- UI refs ----------
+    const dyPeriodKeyEl = document.getElementById('dyPeriodKey');
+    const dyCountdownEl = document.getElementById('dyCountdown');
+    const dyListEl = document.getElementById('dyList');
+    const dyBarEl = document.getElementById('dyBar');
+    const dyDoneEl = document.getElementById('dyDone');
+    const dyTotalEl = document.getElementById('dyTotal');
+    const dyPctEl = document.getElementById('dyPct');
+
+    const wkPeriodKeyEl = document.getElementById('wkPeriodKey');
+    const wkCountdownEl = document.getElementById('wkCountdown');
+    const wkListEl = document.getElementById('wkList');
+    const wkBarEl = document.getElementById('wkBar');
+    const wkDoneEl = document.getElementById('wkDone');
+    const wkTotalEl = document.getElementById('wkTotal');
+    const wkPctEl = document.getElementById('wkPct');
+
+    const dyModal = document.getElementById('dyModal');
+    const wkModal = document.getElementById('wkModal');
+    const dyTemplatesEl = document.getElementById('dyTemplates');
+    const wkTemplatesEl = document.getElementById('wkTemplates');
+
+    function getCheckedMap(mode){
+      const key = periodKey(mode, nowUtcMs());
+      if(!DATA.checked[key]) DATA.checked[key] = {};
+      return DATA.checked[key];
+    }
+
+    function renderTimers(){
+      const now = nowUtcMs();
+      dyPeriodKeyEl.textContent = periodKey('daily', now);
+      wkPeriodKeyEl.textContent = periodKey('weekly', now);
+      dyCountdownEl.textContent = formatCountdown(nextResetDailyUtcMs(now) - now);
+      wkCountdownEl.textContent = formatCountdown(nextResetWeeklyUtcMs(now) - now);
+    }
+
+    function renderChecklist(mode, items, listEl, doneEl, totalEl, pctEl, barEl){
+      listEl.innerHTML = '';
+      const enabledMap = DATA.enabled[mode];
+      const checkedMap = getCheckedMap(mode);
+
+      const enabledItems = items.filter(it => enabledMap[it.id]);
+
+      for(const it of enabledItems){
+        const row = document.createElement('div');
+        row.className = 'item';
+
+        const ck = document.createElement('input');
+        ck.type = 'checkbox';
+        ck.className = 'ck';
+        ck.checked = !!checkedMap[it.id];
+        ck.addEventListener('change', async () => {
+          checkedMap[it.id] = ck.checked;
+          saveLocal();
+          renderChecklistKpi(enabledItems, checkedMap, doneEl, totalEl, pctEl, barEl);
+          await cloudSaveDebounced(false);
+        });
+
+        const txt = document.createElement('div');
+        txt.className = 'name';
+        txt.textContent = it.name();
+
+        row.appendChild(ck);
+        row.appendChild(txt);
+        listEl.appendChild(row);
+      }
+
+      renderChecklistKpi(enabledItems, checkedMap, doneEl, totalEl, pctEl, barEl);
+    }
+
+    function renderChecklistKpi(enabledItems, checkedMap, doneEl, totalEl, pctEl, barEl){
+      let done = 0;
+      for(const it of enabledItems) if(checkedMap[it.id]) done++;
+      const total = enabledItems.length;
+      totalEl.textContent = String(total);
+      doneEl.textContent = String(done);
+      const pct = total ? Math.round(done/total*100) : 0;
+      pctEl.textContent = pct + '%';
+      barEl.style.width = pct + '%';
+    }
+
+    function renderModal(mode, items, containerEl){
+      containerEl.innerHTML = '';
+      const enabledMap = DATA.enabled[mode];
+
+      for(const it of items){
+        const row = document.createElement('div');
+        row.className = 'tmplItem';
+
+        const nm = document.createElement('div');
+        nm.className = 'tmplName';
+        nm.textContent = it.name();
+
+        const btn = document.createElement('button');
+        const isEnabled = !!enabledMap[it.id];
+        btn.className = 'btn ' + (isEnabled ? 'danger' : 'primary');
+        btn.textContent = isEnabled ? '移除' : '加入';
+        btn.addEventListener('click', async () => {
+          enabledMap[it.id] = !isEnabled;
+          saveLocal();
+          renderAll();
+          renderModal(mode, items, containerEl);
+          await cloudSaveDebounced(false);
+        });
+
+        row.appendChild(nm);
+        row.appendChild(btn);
+        containerEl.appendChild(row);
+      }
+    }
+
+    function openModal(which){
+      if(which === 'daily'){
+        renderModal('daily', DAILY_ITEMS, dyTemplatesEl);
+        dyModal.style.display = 'flex';
+      }else{
+        renderModal('weekly', WEEKLY_ITEMS, wkTemplatesEl);
+        wkModal.style.display = 'flex';
+      }
+    }
+    function closeModal(which){
+      if(which === 'daily') dyModal.style.display = 'none';
+      else wkModal.style.display = 'none';
+    }
+
+    function enableAll(mode){
+      const items = mode==='daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
+      for(const it of items) DATA.enabled[mode][it.id] = true;
+      saveLocal(); renderAll(); cloudSaveDebounced(false);
+    }
+    function disableAll(mode){
+      const items = mode==='daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
+      for(const it of items) DATA.enabled[mode][it.id] = false;
+      saveLocal(); renderAll(); cloudSaveDebounced(false);
+    }
+
+    function uncheckAllThisPeriod(mode){
+      const checkedMap = getCheckedMap(mode);
+      const items = mode==='daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
+      const enabledMap = DATA.enabled[mode];
+      const enabledItems = items.filter(it => enabledMap[it.id]);
+      for(const it of enabledItems) delete checkedMap[it.id];
+      saveLocal(); renderAll(); cloudSaveDebounced(false);
+    }
+
+    function renderAll(){
+      renderTimers();
+      renderChecklist('daily',  DAILY_ITEMS,  dyListEl, dyDoneEl, dyTotalEl, dyPctEl, dyBarEl);
+      renderChecklist('weekly', WEEKLY_ITEMS, wkListEl, wkDoneEl, wkTotalEl, wkPctEl, wkBarEl);
+    }
+
+    // ---------- Wire events ----------
+    document.getElementById('dyManage').addEventListener('click', () => openModal('daily'));
+    document.getElementById('wkManage').addEventListener('click', () => openModal('weekly'));
+    document.getElementById('dyUncheck').addEventListener('click', () => uncheckAllThisPeriod('daily'));
+    document.getElementById('wkUncheck').addEventListener('click', () => uncheckAllThisPeriod('weekly'));
+
+    document.getElementById('dyClose').addEventListener('click', () => closeModal('daily'));
+    document.getElementById('wkClose').addEventListener('click', () => closeModal('weekly'));
+
+    document.getElementById('dyEnableAll').addEventListener('click', () => enableAll('daily'));
+    document.getElementById('dyDisableAll').addEventListener('click', () => disableAll('daily'));
+    document.getElementById('wkEnableAll').addEventListener('click', () => enableAll('weekly'));
+    document.getElementById('wkDisableAll').addEventListener('click', () => disableAll('weekly'));
+
+    dyModal.addEventListener('click', (e) => { if(e.target === dyModal) closeModal('daily'); });
+    wkModal.addEventListener('click', (e) => { if(e.target === wkModal) closeModal('weekly'); });
+    document.addEventListener('keydown', (e) => { if(e.key === 'Escape'){ closeModal('daily'); closeModal('weekly'); } });
+
+    btnLogin.addEventListener('click', loginDiscord);
+    btnLogout.addEventListener('click', logout);
+
+    // init
+    renderAll();
+    initSupabase();
+
+    // tick
+    setInterval(() => {
+      const now = nowUtcMs();
+      const newDyPk = periodKey('daily', now);
+      const newWkPk = periodKey('weekly', now);
+
+      dyCountdownEl.textContent = formatCountdown(nextResetDailyUtcMs(now) - now);
+      wkCountdownEl.textContent = formatCountdown(nextResetWeeklyUtcMs(now) - now);
+
+      if(dyPeriodKeyEl.textContent !== newDyPk || wkPeriodKeyEl.textContent !== newWkPk){
+        renderAll();
+        // 跨期也要存一下（避免跨裝置顯示不一致）
+        cloudSaveDebounced(false);
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
