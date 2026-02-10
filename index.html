@@ -485,14 +485,12 @@
   }
 
   async function logout(){
-    if(!supabaseClient) return;
-    await flushCloudSave();
-    await supabaseClient.auth.signOut();
-    currentUser = null;
-    setAuthUI();
-    setSyncState('未啟用');
-    toast('已登出');
-  }
+  // ❌ 不呼叫 supabaseClient.auth.signOut()
+  currentUser = null;
+  setAuthUI();
+  setSyncState('未啟用');
+  toast('已登出（本機）');
+}
 
   async function cloudLoadThenMerge(){
     if(!supabaseClient || !currentUser) return;
