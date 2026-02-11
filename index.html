@@ -351,11 +351,18 @@
         </div>
       </div>
 
-      <!-- ✅ 改成 Email Magic Link -->
+      <!-- Authentication Options -->
       <div class="pillrow" id="authBox">
-        <input class="input" id="emailInput" type="email" placeholder="輸入 Email（Magic Link 登入）" />
-        <button class="btn primary" id="btnSendLink">發送登入連結</button>
-        <button class="btn danger" id="btnLogout" style="display:none;">登出</button>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <div style="display: flex; gap: 8px;">
+            <input class="input" id="emailInput" type="email" placeholder="輸入 Email（Magic Link 登入）" />
+            <button class="btn primary" id="btnSendLink">發送登入連結</button>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn primary2" id="btnDiscordLogin">使用 Discord 登入</button>
+            <button class="btn danger" id="btnLogout" style="display:none;">登出</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -463,7 +470,11 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6bWVmdGxreGNtaWN1YnR2dmpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MDU5NDAsImV4cCI6MjA4NjI4MTk0MH0._OdK5K7BD0GlGyki86fW-qO-4RVAAtng2VJ-LYWY4Yk";
 
     // ✅ 固定你的 GitHub Pages 根（不要用 href 動態拼）
-    const FIXED_REDIRECT_TO = "https://bennycheung1019.github.io/ffxiv-todo-tc/";
+    const FIXED_REDIRECT_TO = window.location.origin + window.location.pathname;
+    
+    // Discord OAuth2 Configuration
+    const DISCORD_CLIENT_ID = 'YOUR_DISCORD_CLIENT_ID'; // Replace with your Discord OAuth2 Client ID
+    const DISCORD_REDIRECT_URI = FIXED_REDIRECT_TO;
 
     // ==========================================================
     // ✅ 所有顯示名稱（你之後可自行校正官方詞）
@@ -630,9 +641,10 @@
 
     let DATA = loadLocal();
 
-    // ---------- Supabase / Auth (Email Magic Link) ----------
+    // ---------- Supabase / Auth (Email Magic Link & Discord) ----------
     let supabaseClient = null;
     let currentUser = null;
+    let currentProvider = null; // Track the current authentication provider
 
     // ✅ 第一次載入雲端：雲端要當 authoritative（避免空 local 覆蓋雲端）
     let hasLoadedFromCloud = false;
@@ -641,6 +653,7 @@
     const syncStateEl = document.getElementById('syncState');
     const emailInputEl = document.getElementById('emailInput');
     const btnSendLink = document.getElementById('btnSendLink');
+    const btnDiscordLogin = document.getElementById('btnDiscordLogin');
     const btnLogout = document.getElementById('btnLogout');
 
     function toast(msg) {
@@ -653,14 +666,17 @@
 
     function setAuthUI() {
       if (currentUser) {
-        authStateEl.textContent = '已登入';
+        const providerName = currentProvider === 'discord' ? 'Discord' : 'Email';
+        authStateEl.textContent = `已登入 (${providerName})`;
         btnLogout.style.display = '';
         btnSendLink.style.display = 'none';
+        btnDiscordLogin.style.display = 'none';
         emailInputEl.style.display = 'none';
       } else {
         authStateEl.textContent = '未登入';
         btnLogout.style.display = 'none';
         btnSendLink.style.display = '';
+        btnDiscordLogin.style.display = '';
         emailInputEl.style.display = '';
       }
     }
@@ -670,6 +686,60 @@
     function cleanUrl() {
       // 清掉 magic link/其他 query/hash，避免污染下一次
       history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // Handle Discord OAuth callback
+    async function handleDiscordCallback() {
+      if (window.location.search.includes('code=') && window.location.search.includes('provider=discord')) {
+        try {
+          setSyncState('正在登入 Discord...');
+          const { data, error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'discord',
+            options: {
+              redirectTo: FIXED_REDIRECT_TO,
+              scopes: 'identify email'
+            }
+          });
+          
+          if (error) throw error;
+          
+          // Clear the URL after successful login
+          window.history.replaceState({}, document.title, window.location.pathname);
+          await cloudLoadThenMerge();
+          setSyncState('已啟用');
+        } catch (error) {
+          console.error('Discord login error:', error);
+          setSyncState('Discord 登入失敗');
+          toast('Discord 登入失敗，請重試');
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    }
+
+    // Initialize Discord OAuth2 login
+    async function loginWithDiscord() {
+      if (!supabaseClient) {
+        toast('請先初始化 Supabase');
+        return;
+      }
+      
+      setSyncState('正在連接到 Discord...');
+      
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'discord',
+          options: {
+            redirectTo: FIXED_REDIRECT_TO,
+            scopes: 'identify email'
+          }
+        });
+        
+        if (error) throw error;
+      } catch (error) {
+        console.error('Discord login error:', error);
+        setSyncState('Discord 登入失敗');
+        toast('Discord 登入失敗，請重試');
+      }
     }
 
     async function initSupabase() {
@@ -697,19 +767,44 @@
         if (window.location.search || window.location.hash) cleanUrl();
       }
 
-      const { data: { session } } = await supabaseClient.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+      }
+      
       currentUser = session?.user ?? null;
+      
+      // Check if user is authenticated with Discord
+      if (currentUser) {
+        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+        if (!userError && user) {
+          currentProvider = user.app_metadata?.provider || 'email';
+        }
+      }
+      
       setAuthUI();
 
       supabaseClient.auth.onAuthStateChange(async (_event, session2) => {
         currentUser = session2?.user ?? null;
-        setAuthUI();
+        
         if (currentUser) {
-          await cloudLoadThenMerge();
-          setSyncState('已啟用');
+          const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+          if (!userError && user) {
+            currentProvider = user.app_metadata?.provider || 'email';
+          }
+          
+          // Handle Discord OAuth callback if needed
+          if (window.location.search.includes('code=') && window.location.search.includes('provider=discord')) {
+            await handleDiscordCallback();
+          } else {
+            await cloudLoadThenMerge();
+            setSyncState('已啟用');
+          }
         } else {
           setSyncState('未啟用');
         }
+        
+        setAuthUI();
       });
 
       if (currentUser) {
@@ -816,22 +911,40 @@
       if (!supabaseClient || !currentUser) return;
       setSyncState('同步中…');
 
-      const payload = {
-        user_id: currentUser.id,
-        data: DATA,
-        updated_at: new Date().toISOString()
-      };
+      try {
+        const payload = {
+          user_id: currentUser.id,
+          data: DATA,
+          updated_at: new Date().toISOString()
+        };
 
-      const { error } = await supabaseClient
-        .from('ffxiv_todo')
-        .upsert(payload, { onConflict: 'user_id' });
+        const { error } = await supabaseClient
+          .from('ffxiv_todo')
+          .upsert(payload, { onConflict: 'user_id' });
 
-      if (error) {
-        console.warn(error);
+        if (error) throw error;
+        
+        setSyncState('已啟用');
+        return true;
+      } catch (error) {
+        console.warn('Cloud save error:', error);
         setSyncState('同步失敗');
-        return;
+        
+        // If unauthorized, try to refresh the session
+        if (error.message.includes('JWT expired') || error.message.includes('Invalid JWT')) {
+          try {
+            const { data: { session }, error: refreshError } = await supabaseClient.auth.refreshSession();
+            if (!refreshError && session) {
+              // Retry saving after refreshing the session
+              return await cloudSaveNow();
+            }
+          } catch (refreshError) {
+            console.error('Session refresh failed:', refreshError);
+          }
+        }
+        
+        return false;
       }
-      setSyncState('已啟用');
     }
 
     async function flushCloudSave() {
@@ -1013,9 +1126,19 @@
     btnSendLink.addEventListener('click', sendMagicLink);
     btnLogout.addEventListener('click', logout);
 
-    // init
+    // Initialize the application
     renderAll();
-    initSupabase();
+    initSupabase().then(() => {
+      // Add event listener for Discord login button
+      if (btnDiscordLogin) {
+        btnDiscordLogin.addEventListener('click', loginWithDiscord);
+      }
+      
+      // Check for Discord OAuth callback
+      if (window.location.search.includes('code=') && window.location.search.includes('provider=discord')) {
+        handleDiscordCallback();
+      }
+    });
 
     // tick
     setInterval(() => {
@@ -1037,6 +1160,13 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') { flushCloudSave(); }
     });
+    
+    // Auto-save every 30 seconds when user is active
+    setInterval(() => {
+      if (currentUser && document.visibilityState === 'visible') {
+        cloudSaveDebounced(false);
+      }
+    }, 30000);
   </script>
 </body>
 
