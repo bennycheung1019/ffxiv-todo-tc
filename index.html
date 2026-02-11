@@ -282,6 +282,31 @@
       padding: 12px 14px 14px 14px
     }
 
+    .taskAdd {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .taskInput {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, .05);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 12px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .taskInput::placeholder {
+      color: var(--muted);
+    }
+
+    .taskInput:focus {
+      border-color: rgba(110, 231, 255, .35);
+    }
+
     .tmplList {
       display: flex;
       flex-direction: column;
@@ -291,7 +316,7 @@
     .tmplItem {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
       gap: 10px;
       border: 1px solid var(--line);
       border-radius: 12px;
@@ -300,10 +325,33 @@
     }
 
     .tmplName {
+      flex: 1;
+      min-width: 0;
       font-size: 13px;
       font-weight: 650;
       line-height: 1.25;
       word-break: break-word
+    }
+
+    .tmplActions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .tmplToggleBtn {
+      min-width: 56px;
+    }
+
+    .btn.deleteStrong {
+      border-color: #dc2626;
+      background: #dc2626;
+      color: #fff;
+    }
+
+    .btn.deleteStrong:hover {
+      background: #b91c1c;
     }
 
     .toast {
@@ -410,6 +458,10 @@
         </div>
       </div>
       <div class="modalBody">
+        <div class="taskAdd">
+          <input class="taskInput" id="dyCustomName" maxlength="60" placeholder="新增自訂項目名稱" />
+          <button class="btn primary" id="dyAddTask">新增</button>
+        </div>
         <div class="tmplList" id="dyTemplates"></div>
       </div>
     </div>
@@ -427,6 +479,10 @@
         </div>
       </div>
       <div class="modalBody">
+        <div class="taskAdd">
+          <input class="taskInput" id="wkCustomName" maxlength="60" placeholder="新增自訂項目名稱" />
+          <button class="btn primary2" id="wkAddTask">新增</button>
+        </div>
         <div class="tmplList" id="wkTemplates"></div>
       </div>
     </div>
@@ -463,11 +519,10 @@
     // ==========================================================
     const UI_TEXT = {
       // Weekly
-      wk_repeatable: "每週可重複任務",
       wk_hunt: "每週狩獵標記",
       wk_squadron_priority: "分隊：優先任務",
       wk_challenge_log: "挑戰筆記",
-      wk_custom_delivery: "客製交付",
+      wk_custom_delivery: "老僱主",
       wk_wondrous_tails: "天書奇談",
       wk_normal_lockout: "普通團隊副本：每週獎勵限制",
       wk_savage_lockout: "零式團隊副本：每週獎勵限制",
@@ -483,23 +538,21 @@
       wk_island: "無人島開拓：每週",
 
       // Daily
-      dy_repeatable: "每日可重複任務",
       dy_hunt: "每日狩獵標記",
-      dy_squadron: "分隊：派遣任務",
-      dy_gc_turnins: "大國防聯軍：繳納品",
+      dy_squadron: "冒險者分隊",
+      dy_gc_turnins: "大國防聯軍：籌備任務",
       dy_fc_voyage: "公會：遠征（飛空艇/潛水艇）",
       dy_retainer: "雇員探險",
       dy_housing: "住宅：園藝/種植",
       dy_tribal: "友好部族任務",
-      dy_treasure_map: "藏寶圖：取得次數",
-      dy_leve: "理符：可承接次數",
-      dy_roulettes: "任務隨機（Roulette）",
-      dy_mini: "金碟遊樂場：小仙人掌彩券",
+      dy_treasure_map: "取得藏寶圖",
+      dy_leve: "理符任務",
+      dy_roulettes: "每日隨機任務",
+      dy_mini: "仙人微彩",
       dy_island: "無人島開拓：每日"
     };
 
     const WEEKLY_ITEMS = [
-      { id: "wk_repeatable", name: () => UI_TEXT.wk_repeatable },
       { id: "wk_hunt", name: () => UI_TEXT.wk_hunt },
       { id: "wk_squadron_priority", name: () => UI_TEXT.wk_squadron_priority },
       { id: "wk_challenge_log", name: () => UI_TEXT.wk_challenge_log },
@@ -520,7 +573,6 @@
     ];
 
     const DAILY_ITEMS = [
-      { id: "dy_repeatable", name: () => UI_TEXT.dy_repeatable },
       { id: "dy_hunt", name: () => UI_TEXT.dy_hunt },
       { id: "dy_squadron", name: () => UI_TEXT.dy_squadron },
       { id: "dy_gc_turnins", name: () => UI_TEXT.dy_gc_turnins },
@@ -598,6 +650,10 @@
         weekly: Object.fromEntries(WEEKLY_ITEMS.map(x => [x.id, true])),
         daily: Object.fromEntries(DAILY_ITEMS.map(x => [x.id, true]))
       },
+      custom: {
+        weekly: [],
+        daily: []
+      },
       checked: {}, // periodKey -> { itemId: true }
       meta: { updatedAt: 0 } // 本機最後更新時間（ms）
     };
@@ -609,13 +665,20 @@
     function mergeWithDefaults(input) {
       const merged = structuredCloneSafe(DEFAULT_DATA);
       if (input?.enabled) merged.enabled = Object.assign(merged.enabled, input.enabled);
+      if (input?.custom) merged.custom = Object.assign(merged.custom, input.custom);
       if (input?.checked) merged.checked = input.checked;
       if (input?.meta) merged.meta = Object.assign(merged.meta, input.meta);
 
       merged.enabled.weekly ||= {};
       merged.enabled.daily ||= {};
+      merged.custom.weekly = Array.isArray(merged.custom.weekly) ? merged.custom.weekly : [];
+      merged.custom.daily = Array.isArray(merged.custom.daily) ? merged.custom.daily : [];
       for (const it of WEEKLY_ITEMS) if (!(it.id in merged.enabled.weekly)) merged.enabled.weekly[it.id] = true;
       for (const it of DAILY_ITEMS) if (!(it.id in merged.enabled.daily)) merged.enabled.daily[it.id] = true;
+      merged.custom.weekly = merged.custom.weekly.filter(it => typeof it?.id === 'string' && typeof it?.name === 'string' && it.name.trim());
+      merged.custom.daily = merged.custom.daily.filter(it => typeof it?.id === 'string' && typeof it?.name === 'string' && it.name.trim());
+      for (const it of merged.custom.weekly) if (!(it.id in merged.enabled.weekly)) merged.enabled.weekly[it.id] = true;
+      for (const it of merged.custom.daily) if (!(it.id in merged.enabled.daily)) merged.enabled.daily[it.id] = true;
 
       merged.meta.updatedAt ||= 0;
       return merged;
@@ -782,6 +845,52 @@
     const wkModal = document.getElementById('wkModal');
     const dyTemplatesEl = document.getElementById('dyTemplates');
     const wkTemplatesEl = document.getElementById('wkTemplates');
+    const dyCustomNameEl = document.getElementById('dyCustomName');
+    const wkCustomNameEl = document.getElementById('wkCustomName');
+
+    function getItems(mode) {
+      const baseItems = mode === 'daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
+      const customItems = (DATA.custom[mode] || []).map(it => ({
+        id: it.id,
+        name: () => it.name,
+        isCustom: true
+      }));
+      return [...baseItems, ...customItems];
+    }
+
+    function makeCustomTaskId(mode) {
+      const rand = Math.random().toString(36).slice(2, 8);
+      return `custom_${mode}_${Date.now().toString(36)}_${rand}`;
+    }
+
+    function addCustomTask(mode, inputEl) {
+      const raw = (inputEl.value || '').trim();
+      if (!raw) return;
+
+      const name = raw.slice(0, 60);
+      const id = makeCustomTaskId(mode);
+      DATA.custom[mode].push({ id, name });
+      DATA.enabled[mode][id] = true;
+
+      inputEl.value = '';
+      touchLocalUpdated();
+      saveLocal();
+      renderAll();
+      renderModal(mode, mode === 'daily' ? dyTemplatesEl : wkTemplatesEl);
+      cloudSaveDebounced();
+    }
+
+    function deleteCustomTask(mode, id) {
+      DATA.custom[mode] = DATA.custom[mode].filter(it => it.id !== id);
+      delete DATA.enabled[mode][id];
+      for (const key of Object.keys(DATA.checked)) delete DATA.checked[key][id];
+
+      touchLocalUpdated();
+      saveLocal();
+      renderAll();
+      renderModal(mode, mode === 'daily' ? dyTemplatesEl : wkTemplatesEl);
+      cloudSaveDebounced();
+    }
 
     function getCheckedMap(mode) {
       const key = periodKey(mode, nowUtcMs());
@@ -850,9 +959,10 @@
       barEl.style.width = pct + '%';
     }
 
-    function renderModal(mode, items, containerEl) {
+    function renderModal(mode, containerEl) {
       containerEl.innerHTML = '';
       const enabledMap = DATA.enabled[mode];
+      const items = getItems(mode);
 
       for (const it of items) {
         const row = document.createElement('div');
@@ -865,6 +975,7 @@
         const btn = document.createElement('button');
         const isEnabled = !!enabledMap[it.id];
         btn.className = 'btn ' + (isEnabled ? 'danger' : (mode === 'weekly' ? 'primary2' : 'primary'));
+        btn.classList.add('tmplToggleBtn');
         btn.textContent = isEnabled ? '移除' : '加入';
 
         btn.addEventListener('click', () => {
@@ -874,22 +985,34 @@
           saveLocal();
 
           renderAll();
-          renderModal(mode, items, containerEl);
+          renderModal(mode, containerEl);
           cloudSaveDebounced();
         });
 
         row.appendChild(nm);
-        row.appendChild(btn);
+        const actions = document.createElement('div');
+        actions.className = 'tmplActions';
+
+        if (it.isCustom) {
+          const delBtn = document.createElement('button');
+          delBtn.className = 'btn deleteStrong';
+          delBtn.textContent = '刪除';
+          delBtn.addEventListener('click', () => deleteCustomTask(mode, it.id));
+          actions.appendChild(delBtn);
+        }
+        actions.appendChild(btn);
+        row.appendChild(actions);
+
         containerEl.appendChild(row);
       }
     }
 
     function openModal(which) {
       if (which === 'daily') {
-        renderModal('daily', DAILY_ITEMS, dyTemplatesEl);
+        renderModal('daily', dyTemplatesEl);
         dyModal.style.display = 'flex';
       } else {
-        renderModal('weekly', WEEKLY_ITEMS, wkTemplatesEl);
+        renderModal('weekly', wkTemplatesEl);
         wkModal.style.display = 'flex';
       }
     }
@@ -899,7 +1022,7 @@
     }
 
     function enableAll(mode) {
-      const items = mode === 'daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
+      const items = getItems(mode);
       for (const it of items) DATA.enabled[mode][it.id] = true;
 
       touchLocalUpdated();
@@ -909,7 +1032,7 @@
     }
 
     function disableAll(mode) {
-      const items = mode === 'daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
+      const items = getItems(mode);
       for (const it of items) DATA.enabled[mode][it.id] = false;
 
       touchLocalUpdated();
@@ -920,7 +1043,7 @@
 
     function uncheckAllThisPeriod(mode) {
       const checkedMap = getCheckedMap(mode);
-      const items = mode === 'daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
+      const items = getItems(mode);
       const enabledMap = DATA.enabled[mode];
       const enabledItems = items.filter(it => enabledMap[it.id]);
 
@@ -934,8 +1057,8 @@
 
     function renderAll() {
       renderTimers();
-      renderChecklist('daily', DAILY_ITEMS, dyListEl, dyDoneEl, dyTotalEl, dyPctEl, dyBarEl);
-      renderChecklist('weekly', WEEKLY_ITEMS, wkListEl, wkDoneEl, wkTotalEl, wkPctEl, wkBarEl);
+      renderChecklist('daily', getItems('daily'), dyListEl, dyDoneEl, dyTotalEl, dyPctEl, dyBarEl);
+      renderChecklist('weekly', getItems('weekly'), wkListEl, wkDoneEl, wkTotalEl, wkPctEl, wkBarEl);
     }
 
     // ==========================================================
@@ -953,6 +1076,10 @@
     document.getElementById('dyDisableAll').addEventListener('click', () => disableAll('daily'));
     document.getElementById('wkEnableAll').addEventListener('click', () => enableAll('weekly'));
     document.getElementById('wkDisableAll').addEventListener('click', () => disableAll('weekly'));
+    document.getElementById('dyAddTask').addEventListener('click', () => addCustomTask('daily', dyCustomNameEl));
+    document.getElementById('wkAddTask').addEventListener('click', () => addCustomTask('weekly', wkCustomNameEl));
+    dyCustomNameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') addCustomTask('daily', dyCustomNameEl); });
+    wkCustomNameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') addCustomTask('weekly', wkCustomNameEl); });
 
     dyModal.addEventListener('click', (e) => { if (e.target === dyModal) closeModal('daily'); });
     wkModal.addEventListener('click', (e) => { if (e.target === wkModal) closeModal('weekly'); });
