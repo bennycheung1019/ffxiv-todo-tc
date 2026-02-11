@@ -120,6 +120,22 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace
     }
 
+    .input {
+      height: 34px;
+      padding: 0 10px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, .05);
+      color: var(--text);
+      outline: none;
+      font-size: 12px;
+      min-width: 220px;
+    }
+
+    .input::placeholder {
+      color: rgba(159, 177, 216, .7)
+    }
+
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -238,7 +254,6 @@
       word-break: break-word
     }
 
-    /* Modal */
     .modalBackdrop {
       position: fixed;
       inset: 0;
@@ -335,8 +350,11 @@
           <div class="pill">雲端同步：<b id="syncState">未啟用</b></div>
         </div>
       </div>
-      <div class="pillrow">
-        <button class="btn primary" id="btnLogin">Discord 登入</button>
+
+      <!-- ✅ 改成 Email Magic Link -->
+      <div class="pillrow" id="authBox">
+        <input class="input" id="emailInput" type="email" placeholder="輸入 Email（Magic Link 登入）" />
+        <button class="btn primary" id="btnSendLink">發送登入連結</button>
         <button class="btn danger" id="btnLogout" style="display:none;">登出</button>
       </div>
     </header>
@@ -437,162 +455,588 @@
   <!-- Supabase JS (CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-
   <script>
-
+    // ==========================================================
+    // ✅ Supabase 專案資訊
+    // ==========================================================
     const SUPABASE_URL = "https://jzmeftlkxcmicubtvvjl.supabase.co";
-    const SUPABASE_ANON_KEY =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6bWVmdGxreGNtaWN1YnR2dmpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MDU5NDAsImV4cCI6MjA4NjI4MTk0MH0._OdK5K7BD0GlGyki86fW-qO-4RVAAtng2VJ-LYWY4Yk";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6bWVmdGxreGNtaWN1YnR2dmpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MDU5NDAsImV4cCI6MjA4NjI4MTk0MH0._OdK5K7BD0GlGyki86fW-qO-4RVAAtng2VJ-LYWY4Yk";
 
-
+    // ✅ 固定你的 GitHub Pages 根（不要用 href 動態拼）
     const FIXED_REDIRECT_TO = "https://bennycheung1019.github.io/ffxiv-todo-tc/";
 
-    let supabaseClient;
-    let currentUser = null;
-    let hasLoadedFromCloud = false;
+    // ==========================================================
+    // ✅ 所有顯示名稱（你之後可自行校正官方詞）
+    // ==========================================================
+    const UI_TEXT = {
+      // Weekly
+      wk_repeatable: "每週可重複任務",
+      wk_hunt: "每週狩獵標記",
+      wk_squadron_priority: "分隊：優先任務",
+      wk_challenge_log: "挑戰筆記",
+      wk_custom_delivery: "自訂交付 / 客製交付",
+      wk_wondrous_tails: "天書奇談",
+      wk_normal_lockout: "普通團隊副本：每週獎勵限制",
+      wk_savage_lockout: "零式團隊副本：每週獎勵限制",
+      wk_alliance_lockout: "24人團隊副本：每週獎勵限制",
+      wk_faux_hollows: "幻巧（幻巧戰/幻巧葉/幻巧拼圖）",
+      wk_tomestone_cap: "（週限）神典石：取得上限",
+      wk_doman: "多瑪飛地：捐獻",
+      wk_masked: "假面狂歡（每週目標）",
+      wk_blue_log: "青魔：青魔記錄 / 青魔日誌",
+      wk_gold_tourney: "金碟遊樂場：錦標賽",
+      wk_fashion: "時尚品鑑 / 時尚品鑒",
+      wk_jumbo: "仙人仙彩",
+      wk_island: "無人島開拓：每週",
 
+      // Daily
+      dy_repeatable: "每日可重複任務",
+      dy_hunt: "每日狩獵標記",
+      dy_squadron: "分隊：派遣任務",
+      dy_gc_turnins: "籌備任務（大國防聯軍交納品）",
+      dy_fc_voyage: "公會：遠征（飛空艇/潛水艇）",
+      dy_retainer: "雇員探險（委託雇員冒險）",
+      dy_housing: "住宅：園藝/種植",
+      dy_tribal: "友好部族任務",
+      dy_treasure_map: "藏寶圖：取得次數",
+      dy_leve: "行會理符：理符承接次數",
+      dy_roulettes: "隨機任務（任務搜尋器）",
+      dy_mini: "金碟遊樂場：小仙人掌彩券",
+      dy_island: "無人島開拓：每日"
+    };
+
+    const WEEKLY_ITEMS = [
+      { id: "wk_repeatable", name: () => UI_TEXT.wk_repeatable },
+      { id: "wk_hunt", name: () => UI_TEXT.wk_hunt },
+      { id: "wk_squadron_priority", name: () => UI_TEXT.wk_squadron_priority },
+      { id: "wk_challenge_log", name: () => UI_TEXT.wk_challenge_log },
+      { id: "wk_custom_delivery", name: () => UI_TEXT.wk_custom_delivery },
+      { id: "wk_wondrous_tails", name: () => UI_TEXT.wk_wondrous_tails },
+      { id: "wk_normal_lockout", name: () => UI_TEXT.wk_normal_lockout },
+      { id: "wk_savage_lockout", name: () => UI_TEXT.wk_savage_lockout },
+      { id: "wk_alliance_lockout", name: () => UI_TEXT.wk_alliance_lockout },
+      { id: "wk_faux_hollows", name: () => UI_TEXT.wk_faux_hollows },
+      { id: "wk_tomestone_cap", name: () => UI_TEXT.wk_tomestone_cap },
+      { id: "wk_doman", name: () => UI_TEXT.wk_doman },
+      { id: "wk_masked", name: () => UI_TEXT.wk_masked },
+      { id: "wk_blue_log", name: () => UI_TEXT.wk_blue_log },
+      { id: "wk_gold_tourney", name: () => UI_TEXT.wk_gold_tourney },
+      { id: "wk_fashion", name: () => UI_TEXT.wk_fashion },
+      { id: "wk_jumbo", name: () => UI_TEXT.wk_jumbo },
+      { id: "wk_island", name: () => UI_TEXT.wk_island }
+    ];
+
+    const DAILY_ITEMS = [
+      { id: "dy_repeatable", name: () => UI_TEXT.dy_repeatable },
+      { id: "dy_hunt", name: () => UI_TEXT.dy_hunt },
+      { id: "dy_squadron", name: () => UI_TEXT.dy_squadron },
+      { id: "dy_gc_turnins", name: () => UI_TEXT.dy_gc_turnins },
+      { id: "dy_fc_voyage", name: () => UI_TEXT.dy_fc_voyage },
+      { id: "dy_retainer", name: () => UI_TEXT.dy_retainer },
+      { id: "dy_housing", name: () => UI_TEXT.dy_housing },
+      { id: "dy_tribal", name: () => UI_TEXT.dy_tribal },
+      { id: "dy_treasure_map", name: () => UI_TEXT.dy_treasure_map },
+      { id: "dy_leve", name: () => UI_TEXT.dy_leve },
+      { id: "dy_roulettes", name: () => UI_TEXT.dy_roulettes },
+      { id: "dy_mini", name: () => UI_TEXT.dy_mini },
+      { id: "dy_island", name: () => UI_TEXT.dy_island }
+    ];
+
+    // ---------- HKT 時間 ----------
+    const TZ_OFFSET_MIN = 8 * 60;
+    const DAILY_RESET_HOUR = 23, DAILY_RESET_MIN = 0;
+    const WEEKLY_RESET_DOW = 2, WEEKLY_RESET_HOUR = 16, WEEKLY_RESET_MIN = 0;
+
+    function nowUtcMs() { return Date.now(); }
+    function toTzDate(msUtc) { return new Date(msUtc + TZ_OFFSET_MIN * 60 * 1000); }
+    function fromTzPartsToUtcMs(y, m, d, hh, mm) {
+      const ms = Date.UTC(y, m, d, hh, mm, 0, 0);
+      return ms - TZ_OFFSET_MIN * 60 * 1000;
+    }
+    function fmt2(n) { return String(n).padStart(2, '0'); }
+
+    function periodStartDailyUtcMs(msUtc) {
+      const t = toTzDate(msUtc);
+      const y = t.getUTCFullYear(), m = t.getUTCMonth(), d = t.getUTCDate();
+      const todayResetUtc = fromTzPartsToUtcMs(y, m, d, DAILY_RESET_HOUR, DAILY_RESET_MIN);
+      if (msUtc >= todayResetUtc) return todayResetUtc;
+      const yest = new Date(Date.UTC(y, m, d) - 24 * 3600 * 1000);
+      return fromTzPartsToUtcMs(yest.getUTCFullYear(), yest.getUTCMonth(), yest.getUTCDate(), DAILY_RESET_HOUR, DAILY_RESET_MIN);
+    }
+    function nextResetDailyUtcMs(msUtc) { return periodStartDailyUtcMs(msUtc) + 24 * 3600 * 1000; }
+
+    function periodStartWeeklyUtcMs(msUtc) {
+      const t = toTzDate(msUtc);
+      const y = t.getUTCFullYear(), m = t.getUTCMonth(), d = t.getUTCDate();
+      const dow = t.getUTCDay();
+      const daysSinceTue = (dow - WEEKLY_RESET_DOW + 7) % 7;
+      const thisTue = new Date(Date.UTC(y, m, d) - daysSinceTue * 24 * 3600 * 1000);
+      const thisTueResetUtc = fromTzPartsToUtcMs(thisTue.getUTCFullYear(), thisTue.getUTCMonth(), thisTue.getUTCDate(), WEEKLY_RESET_HOUR, WEEKLY_RESET_MIN);
+      if (msUtc >= thisTueResetUtc) return thisTueResetUtc;
+      return thisTueResetUtc - 7 * 24 * 3600 * 1000;
+    }
+    function nextResetWeeklyUtcMs(msUtc) { return periodStartWeeklyUtcMs(msUtc) + 7 * 24 * 3600 * 1000; }
+
+    function periodKey(mode, msUtc) {
+      const start = (mode === 'daily') ? periodStartDailyUtcMs(msUtc) : periodStartWeeklyUtcMs(msUtc);
+      const t = toTzDate(start);
+      const y = t.getUTCFullYear(), m = t.getUTCMonth() + 1, d = t.getUTCDate(), hh = t.getUTCHours(), mm = t.getUTCMinutes();
+      return `${mode}:${y}-${fmt2(m)}-${fmt2(d)} ${fmt2(hh)}:${fmt2(mm)} (HKT)`;
+    }
+    function formatCountdown(ms) {
+      ms = Math.max(0, ms);
+      const s = Math.floor(ms / 1000);
+      const dd = Math.floor(s / 86400);
+      const hh = Math.floor((s % 86400) / 3600);
+      const mm = Math.floor((s % 3600) / 60);
+      if (dd > 0) return `${dd}天 ${hh}小時 ${mm}分`;
+      if (hh > 0) return `${hh}小時 ${mm}分`;
+      return `${mm}分`;
+    }
+
+    // ---------- Storage (local fallback + cloud) ----------
     const LS_KEY = 'ffxiv_todo_local_cache_v1';
+    const DEFAULT_DATA = {
+      enabled: {
+        weekly: Object.fromEntries(WEEKLY_ITEMS.map(x => [x.id, true])),
+        daily: Object.fromEntries(DAILY_ITEMS.map(x => [x.id, true]))
+      },
+      checked: {} // periodKey -> { itemId: true }
+    };
+
+    function mergeWithDefaults(input) {
+      const merged = structuredClone(DEFAULT_DATA);
+      if (input?.enabled) merged.enabled = Object.assign(merged.enabled, input.enabled);
+      if (input?.checked) merged.checked = input.checked;
+
+      merged.enabled.weekly ||= {};
+      merged.enabled.daily ||= {};
+      for (const it of WEEKLY_ITEMS) if (!(it.id in merged.enabled.weekly)) merged.enabled.weekly[it.id] = true;
+      for (const it of DAILY_ITEMS) if (!(it.id in merged.enabled.daily)) merged.enabled.daily[it.id] = true;
+      return merged;
+    }
 
     function loadLocal() {
       try {
-        return JSON.parse(localStorage.getItem(LS_KEY)) || {};
+        const raw = localStorage.getItem(LS_KEY);
+        if (!raw) return structuredClone(DEFAULT_DATA);
+        const parsed = JSON.parse(raw);
+        return mergeWithDefaults(parsed);
       } catch {
-        return {};
+        return structuredClone(DEFAULT_DATA);
       }
     }
-
-    function saveLocal(data) {
-      localStorage.setItem(LS_KEY, JSON.stringify(data));
-    }
+    function saveLocal() { localStorage.setItem(LS_KEY, JSON.stringify(DATA)); }
 
     let DATA = loadLocal();
 
+    // ---------- Supabase / Auth (Email Magic Link) ----------
+    let supabaseClient = null;
+    let currentUser = null;
+
+    // ✅ 第一次載入雲端：雲端要當 authoritative（避免空 local 覆蓋雲端）
+    let hasLoadedFromCloud = false;
+
+    const authStateEl = document.getElementById('authState');
+    const syncStateEl = document.getElementById('syncState');
+    const emailInputEl = document.getElementById('emailInput');
+    const btnSendLink = document.getElementById('btnSendLink');
+    const btnLogout = document.getElementById('btnLogout');
+
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.style.display = 'block';
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.style.display = 'none', 1600);
+    }
+
+    function setAuthUI() {
+      if (currentUser) {
+        authStateEl.textContent = '已登入';
+        btnLogout.style.display = '';
+        btnSendLink.style.display = 'none';
+        emailInputEl.style.display = 'none';
+      } else {
+        authStateEl.textContent = '未登入';
+        btnLogout.style.display = 'none';
+        btnSendLink.style.display = '';
+        emailInputEl.style.display = '';
+      }
+    }
+
+    function setSyncState(text) { syncStateEl.textContent = text; }
+
     function cleanUrl() {
+      // 清掉 magic link/其他 query/hash，避免污染下一次
       history.replaceState({}, document.title, window.location.pathname);
     }
 
     async function initSupabase() {
-
-      supabaseClient = window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_ANON_KEY,
-        {
-          auth: {
-            flowType: 'pkce',
-            detectSessionInUrl: true,
-            persistSession: true,
-            autoRefreshToken: true
-          }
-        }
-      );
-
-      // 處理回跳
-      const hasCode = new URLSearchParams(window.location.search).get('code');
-      const hasToken = window.location.hash.includes('access_token');
-
-      if (hasCode) {
-        await supabaseClient.auth.exchangeCodeForSession(window.location.href);
-        cleanUrl();
+      const ok = SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes('PASTE_');
+      if (!ok) {
+        setSyncState('未設定 Supabase');
+        return;
       }
 
-      if (hasToken) {
-        await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
-        cleanUrl();
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      });
+
+      // ✅ Magic link 回跳：把 URL 內 session 寫入 localStorage
+      try {
+        const { error } = await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
+        if (error) console.warn('getSessionFromUrl:', error);
+      } catch (e) {
+        console.warn('getSessionFromUrl failed:', e);
+      } finally {
+        if (window.location.search || window.location.hash) cleanUrl();
       }
 
       const { data: { session } } = await supabaseClient.auth.getSession();
       currentUser = session?.user ?? null;
+      setAuthUI();
 
-      updateAuthUI();
-
-      if (currentUser) {
-        await cloudLoad();
-      }
-
-      supabaseClient.auth.onAuthStateChange(async (_, session) => {
-        currentUser = session?.user ?? null;
-        updateAuthUI();
-
+      supabaseClient.auth.onAuthStateChange(async (_event, session2) => {
+        currentUser = session2?.user ?? null;
+        setAuthUI();
         if (currentUser) {
-          await cloudLoad();
+          await cloudLoadThenMerge();
+          setSyncState('已啟用');
+        } else {
+          setSyncState('未啟用');
         }
       });
+
+      if (currentUser) {
+        await cloudLoadThenMerge();
+        setSyncState('已啟用');
+      } else {
+        setSyncState('未啟用');
+      }
     }
 
-    function updateAuthUI() {
-      document.getElementById('authState').textContent =
-        currentUser ? '已登入' : '未登入';
+    async function sendMagicLink() {
+      if (!supabaseClient) { toast('請先設定 Supabase'); return; }
+      const email = (emailInputEl.value || '').trim();
+      if (!email) { toast('請輸入 Email'); return; }
 
-      document.getElementById('btnLogin').style.display =
-        currentUser ? 'none' : '';
-
-      document.getElementById('btnLogout').style.display =
-        currentUser ? '' : 'none';
-    }
-
-    async function loginDiscord() {
-      await supabaseClient.auth.signInWithOAuth({
-        provider: 'discord',
-        options: { redirectTo: FIXED_REDIRECT_TO }
+      const { error } = await supabaseClient.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: FIXED_REDIRECT_TO
+        }
       });
+
+      if (error) {
+        console.warn(error);
+        toast('發送失敗（請檢查 Email provider 與 Redirect URLs）');
+        return;
+      }
+
+      toast('已發送登入連結，請到信箱點擊');
     }
 
     async function logout() {
+      if (!supabaseClient) return;
+      await flushCloudSave(); // 先強制存一次，避免登出前丟資料
       await supabaseClient.auth.signOut();
       currentUser = null;
       hasLoadedFromCloud = false;
-      updateAuthUI();
+      setAuthUI();
+      setSyncState('未啟用');
+      toast('已登出');
     }
 
-    async function cloudLoad() {
+    // ---------- Cloud sync ----------
+    function mergeDeep(base, overlay) {
+      const out = structuredClone(base);
+      if (overlay?.enabled) {
+        out.enabled = out.enabled || {};
+        out.enabled.weekly = Object.assign(out.enabled.weekly || {}, overlay.enabled.weekly || {});
+        out.enabled.daily = Object.assign(out.enabled.daily || {}, overlay.enabled.daily || {});
+      }
+      if (overlay?.checked) {
+        out.checked = Object.assign(out.checked || {}, overlay.checked || {});
+      }
+      return mergeWithDefaults(out);
+    }
 
-      const { data } = await supabaseClient
+    async function cloudLoadThenMerge() {
+      if (!supabaseClient || !currentUser) return;
+      setSyncState('同步中…');
+
+      const { data, error } = await supabaseClient
         .from('ffxiv_todo')
         .select('data')
         .eq('user_id', currentUser.id)
         .maybeSingle();
 
-      if (data?.data) {
+      if (error) {
+        console.warn(error);
+        setSyncState('讀取失敗');
+        return;
+      }
+
+      const cloudData = data?.data ? mergeWithDefaults(data.data) : null;
+
+      // ✅ 正確策略：
+      // 第一次登入/新裝置：雲端覆蓋本機（避免空 local 覆蓋雲端）
+      // 之後：本機改動可覆蓋雲端（避免 UI 當下改動被舊雲端洗掉）
+      if (cloudData) {
         if (!hasLoadedFromCloud) {
-          DATA = data.data;
+          DATA = mergeDeep(DATA, cloudData);
           hasLoadedFromCloud = true;
+        } else {
+          DATA = mergeDeep(cloudData, DATA);
         }
       }
 
-      saveLocal(DATA);
+      saveLocal();
       renderAll();
+
+      await cloudSaveDebounced(true);
+      setSyncState('已啟用');
     }
 
-    async function cloudSave() {
-      if (!currentUser) return;
+    let _saveTimer = null;
 
-      await supabaseClient
+    async function cloudSaveDebounced(immediate = false) {
+      if (!supabaseClient || !currentUser) return;
+      if (immediate) return cloudSaveNow();
+      clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(cloudSaveNow, 250);
+    }
+
+    async function cloudSaveNow() {
+      if (!supabaseClient || !currentUser) return;
+      setSyncState('同步中…');
+
+      const payload = {
+        user_id: currentUser.id,
+        data: DATA,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabaseClient
         .from('ffxiv_todo')
-        .upsert({
-          user_id: currentUser.id,
-          data: DATA
-        }, { onConflict: 'user_id' });
+        .upsert(payload, { onConflict: 'user_id' });
+
+      if (error) {
+        console.warn(error);
+        setSyncState('同步失敗');
+        return;
+      }
+      setSyncState('已啟用');
     }
 
-    function bindCheckbox() {
-      document.querySelectorAll('.ck').forEach(cb => {
-        cb.addEventListener('change', () => {
-          DATA[cb.dataset.id] = cb.checked;
-          saveLocal(DATA);
-          cloudSave();
+    async function flushCloudSave() {
+      if (!supabaseClient || !currentUser) return;
+      clearTimeout(_saveTimer);
+      _saveTimer = null;
+      await cloudSaveNow();
+    }
+
+    // ---------- UI refs ----------
+    const dyPeriodKeyEl = document.getElementById('dyPeriodKey');
+    const dyCountdownEl = document.getElementById('dyCountdown');
+    const dyListEl = document.getElementById('dyList');
+    const dyBarEl = document.getElementById('dyBar');
+    const dyDoneEl = document.getElementById('dyDone');
+    const dyTotalEl = document.getElementById('dyTotal');
+    const dyPctEl = document.getElementById('dyPct');
+
+    const wkPeriodKeyEl = document.getElementById('wkPeriodKey');
+    const wkCountdownEl = document.getElementById('wkCountdown');
+    const wkListEl = document.getElementById('wkList');
+    const wkBarEl = document.getElementById('wkBar');
+    const wkDoneEl = document.getElementById('wkDone');
+    const wkTotalEl = document.getElementById('wkTotal');
+    const wkPctEl = document.getElementById('wkPct');
+
+    const dyModal = document.getElementById('dyModal');
+    const wkModal = document.getElementById('wkModal');
+    const dyTemplatesEl = document.getElementById('dyTemplates');
+    const wkTemplatesEl = document.getElementById('wkTemplates');
+
+    function getCheckedMap(mode) {
+      const key = periodKey(mode, nowUtcMs());
+      if (!DATA.checked[key]) DATA.checked[key] = {};
+      return DATA.checked[key];
+    }
+
+    function renderTimers() {
+      const now = nowUtcMs();
+      dyPeriodKeyEl.textContent = periodKey('daily', now);
+      wkPeriodKeyEl.textContent = periodKey('weekly', now);
+      dyCountdownEl.textContent = formatCountdown(nextResetDailyUtcMs(now) - now);
+      wkCountdownEl.textContent = formatCountdown(nextResetWeeklyUtcMs(now) - now);
+    }
+
+    function renderChecklist(mode, items, listEl, doneEl, totalEl, pctEl, barEl) {
+      listEl.innerHTML = '';
+      const enabledMap = DATA.enabled[mode];
+      const checkedMap = getCheckedMap(mode);
+
+      const enabledItems = items.filter(it => enabledMap[it.id]);
+
+      for (const it of enabledItems) {
+        const row = document.createElement('div');
+        row.className = 'item';
+
+        const ck = document.createElement('input');
+        ck.type = 'checkbox';
+        ck.className = 'ck';
+        ck.checked = !!checkedMap[it.id];
+        ck.addEventListener('change', async () => {
+          checkedMap[it.id] = ck.checked;
+          saveLocal();
+          renderChecklistKpi(enabledItems, checkedMap, doneEl, totalEl, pctEl, barEl);
+          await cloudSaveDebounced(false); // ✅ 每次勾選都寫雲端（debounce）
         });
-      });
+
+        const txt = document.createElement('div');
+        txt.className = 'name';
+        txt.textContent = it.name();
+
+        row.appendChild(ck);
+        row.appendChild(txt);
+        listEl.appendChild(row);
+      }
+
+      renderChecklistKpi(enabledItems, checkedMap, doneEl, totalEl, pctEl, barEl);
     }
 
-    // 你的原 renderAll 保留
-    // 只要在 renderChecklist 內給 checkbox 加上
-    // ck.dataset.id = it.id;
+    function renderChecklistKpi(enabledItems, checkedMap, doneEl, totalEl, pctEl, barEl) {
+      let done = 0;
+      for (const it of enabledItems) if (checkedMap[it.id]) done++;
+      const total = enabledItems.length;
+      totalEl.textContent = String(total);
+      doneEl.textContent = String(done);
+      const pct = total ? Math.round(done / total * 100) : 0;
+      pctEl.textContent = pct + '%';
+      barEl.style.width = pct + '%';
+    }
 
-    document.getElementById('btnLogin').addEventListener('click', loginDiscord);
-    document.getElementById('btnLogout').addEventListener('click', logout);
+    function renderModal(mode, items, containerEl) {
+      containerEl.innerHTML = '';
+      const enabledMap = DATA.enabled[mode];
 
+      for (const it of items) {
+        const row = document.createElement('div');
+        row.className = 'tmplItem';
+
+        const nm = document.createElement('div');
+        nm.className = 'tmplName';
+        nm.textContent = it.name();
+
+        const btn = document.createElement('button');
+        const isEnabled = !!enabledMap[it.id];
+        btn.className = 'btn ' + (isEnabled ? 'danger' : 'primary');
+        btn.textContent = isEnabled ? '移除' : '加入';
+        btn.addEventListener('click', async () => {
+          enabledMap[it.id] = !isEnabled;
+          saveLocal();
+          renderAll();
+          renderModal(mode, items, containerEl);
+          await cloudSaveDebounced(false);
+        });
+
+        row.appendChild(nm);
+        row.appendChild(btn);
+        containerEl.appendChild(row);
+      }
+    }
+
+    function openModal(which) {
+      if (which === 'daily') {
+        renderModal('daily', DAILY_ITEMS, dyTemplatesEl);
+        dyModal.style.display = 'flex';
+      } else {
+        renderModal('weekly', WEEKLY_ITEMS, wkTemplatesEl);
+        wkModal.style.display = 'flex';
+      }
+    }
+    function closeModal(which) {
+      if (which === 'daily') dyModal.style.display = 'none';
+      else wkModal.style.display = 'none';
+    }
+
+    function enableAll(mode) {
+      const items = mode === 'daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
+      for (const it of items) DATA.enabled[mode][it.id] = true;
+      saveLocal(); renderAll(); cloudSaveDebounced(false);
+    }
+    function disableAll(mode) {
+      const items = mode === 'daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
+      for (const it of items) DATA.enabled[mode][it.id] = false;
+      saveLocal(); renderAll(); cloudSaveDebounced(false);
+    }
+
+    function uncheckAllThisPeriod(mode) {
+      const checkedMap = getCheckedMap(mode);
+      const items = mode === 'daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
+      const enabledMap = DATA.enabled[mode];
+      const enabledItems = items.filter(it => enabledMap[it.id]);
+      for (const it of enabledItems) delete checkedMap[it.id];
+      saveLocal(); renderAll(); cloudSaveDebounced(false);
+    }
+
+    function renderAll() {
+      renderTimers();
+      renderChecklist('daily', DAILY_ITEMS, dyListEl, dyDoneEl, dyTotalEl, dyPctEl, dyBarEl);
+      renderChecklist('weekly', WEEKLY_ITEMS, wkListEl, wkDoneEl, wkTotalEl, wkPctEl, wkBarEl);
+    }
+
+    // ---------- Wire events ----------
+    document.getElementById('dyManage').addEventListener('click', () => openModal('daily'));
+    document.getElementById('wkManage').addEventListener('click', () => openModal('weekly'));
+    document.getElementById('dyUncheck').addEventListener('click', () => uncheckAllThisPeriod('daily'));
+    document.getElementById('wkUncheck').addEventListener('click', () => uncheckAllThisPeriod('weekly'));
+
+    document.getElementById('dyClose').addEventListener('click', () => closeModal('daily'));
+    document.getElementById('wkClose').addEventListener('click', () => closeModal('weekly'));
+
+    document.getElementById('dyEnableAll').addEventListener('click', () => enableAll('daily'));
+    document.getElementById('dyDisableAll').addEventListener('click', () => disableAll('daily'));
+    document.getElementById('wkEnableAll').addEventListener('click', () => enableAll('weekly'));
+    document.getElementById('wkDisableAll').addEventListener('click', () => disableAll('weekly'));
+
+    dyModal.addEventListener('click', (e) => { if (e.target === dyModal) closeModal('daily'); });
+    wkModal.addEventListener('click', (e) => { if (e.target === wkModal) closeModal('weekly'); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeModal('daily'); closeModal('weekly'); } });
+
+    btnSendLink.addEventListener('click', sendMagicLink);
+    btnLogout.addEventListener('click', logout);
+
+    // init
+    renderAll();
     initSupabase();
 
+    // tick
+    setInterval(() => {
+      const now = nowUtcMs();
+      const newDyPk = periodKey('daily', now);
+      const newWkPk = periodKey('weekly', now);
+
+      dyCountdownEl.textContent = formatCountdown(nextResetDailyUtcMs(now) - now);
+      wkCountdownEl.textContent = formatCountdown(nextResetWeeklyUtcMs(now) - now);
+
+      if (dyPeriodKeyEl.textContent !== newDyPk || wkPeriodKeyEl.textContent !== newWkPk) {
+        renderAll();
+        cloudSaveDebounced(false);
+      }
+    }, 1000);
+
+    // 關頁/切背景：補最後一次同步（避免使用者沒按登出就關掉）
+    window.addEventListener('pagehide', () => { flushCloudSave(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { flushCloudSave(); }
+    });
   </script>
 </body>
 
