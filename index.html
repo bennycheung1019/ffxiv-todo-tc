@@ -120,22 +120,6 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace
     }
 
-    .input {
-      height: 34px;
-      padding: 0 10px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, .05);
-      color: var(--text);
-      outline: none;
-      font-size: 12px;
-      min-width: 220px;
-    }
-
-    .input::placeholder {
-      color: rgba(159, 177, 216, .7)
-    }
-
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -254,6 +238,7 @@
       word-break: break-word
     }
 
+    /* Modal */
     .modalBackdrop {
       position: fixed;
       inset: 0;
@@ -350,19 +335,9 @@
           <div class="pill">雲端同步：<b id="syncState">未啟用</b></div>
         </div>
       </div>
-
-      <!-- Authentication Options -->
-      <div class="pillrow" id="authBox">
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <div style="display: flex; gap: 8px;">
-            <input class="input" id="emailInput" type="email" placeholder="輸入 Email（Magic Link 登入）" />
-            <button class="btn primary" id="btnSendLink">發送登入連結</button>
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn primary2" id="btnDiscordLogin">使用 Discord 登入</button>
-            <button class="btn danger" id="btnLogout" style="display:none;">登出</button>
-          </div>
-        </div>
+      <div class="pillrow">
+        <button class="btn primary" id="btnLogin">Google 登入</button>
+        <button class="btn danger" id="btnLogout" style="display:none;">登出</button>
       </div>
     </header>
 
@@ -459,25 +434,32 @@
 
   <div class="toast" id="toast"></div>
 
-  <!-- Supabase JS (CDN) -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <script>
-    // ==========================================================
-    // ✅ Supabase 專案資訊
-    // ==========================================================
-    const SUPABASE_URL = "https://jzmeftlkxcmicubtvvjl.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp6bWVmdGxreGNtaWN1YnR2dmpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MDU5NDAsImV4cCI6MjA4NjI4MTk0MH0._OdK5K7BD0GlGyki86fW-qO-4RVAAtng2VJ-LYWY4Yk";
-
-    // ✅ 固定你的 GitHub Pages 根（不要用 href 動態拼）
-    const FIXED_REDIRECT_TO = window.location.origin + window.location.pathname;
-    
-    // Discord OAuth2 Configuration
-    const DISCORD_CLIENT_ID = 'YOUR_DISCORD_CLIENT_ID'; // Replace with your Discord OAuth2 Client ID
-    const DISCORD_REDIRECT_URI = FIXED_REDIRECT_TO;
+  <!-- ✅ Firebase + Firestore + Google Auth -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
     // ==========================================================
-    // ✅ 所有顯示名稱（你之後可自行校正官方詞）
+    // ✅ 你的 Firebase config（已幫你填好）
+    // ==========================================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyCQwlEqq7CtfC02MCiis_45rRltxInJJWo",
+      authDomain: "ffxiv-todo.firebaseapp.com",
+      projectId: "ffxiv-todo",
+      storageBucket: "ffxiv-todo.firebasestorage.app",
+      messagingSenderId: "641826809761",
+      appId: "1:641826809761:web:a874abbd2bc6074d4acde0",
+      measurementId: "G-H16TGZ89FQ"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+
+    // ==========================================================
+    // ✅ 名稱（你之後可自行校正官方詞）
     // ==========================================================
     const UI_TEXT = {
       // Weekly
@@ -485,18 +467,18 @@
       wk_hunt: "每週狩獵標記",
       wk_squadron_priority: "分隊：優先任務",
       wk_challenge_log: "挑戰筆記",
-      wk_custom_delivery: "自訂交付 / 客製交付",
+      wk_custom_delivery: "客製交付",
       wk_wondrous_tails: "天書奇談",
       wk_normal_lockout: "普通團隊副本：每週獎勵限制",
       wk_savage_lockout: "零式團隊副本：每週獎勵限制",
       wk_alliance_lockout: "24人團隊副本：每週獎勵限制",
-      wk_faux_hollows: "幻巧（幻巧戰/幻巧葉/幻巧拼圖）",
+      wk_faux_hollows: "幻巧",
       wk_tomestone_cap: "（週限）神典石：取得上限",
       wk_doman: "多瑪飛地：捐獻",
       wk_masked: "假面狂歡（每週目標）",
-      wk_blue_log: "青魔：青魔記錄 / 青魔日誌",
+      wk_blue_log: "青魔：青魔日誌",
       wk_gold_tourney: "金碟遊樂場：錦標賽",
-      wk_fashion: "時尚品鑑 / 時尚品鑒",
+      wk_fashion: "時尚品鑑",
       wk_jumbo: "仙人仙彩",
       wk_island: "無人島開拓：每週",
 
@@ -504,14 +486,14 @@
       dy_repeatable: "每日可重複任務",
       dy_hunt: "每日狩獵標記",
       dy_squadron: "分隊：派遣任務",
-      dy_gc_turnins: "籌備任務（大國防聯軍交納品）",
+      dy_gc_turnins: "大國防聯軍：繳納品",
       dy_fc_voyage: "公會：遠征（飛空艇/潛水艇）",
-      dy_retainer: "雇員探險（委託雇員冒險）",
+      dy_retainer: "雇員探險",
       dy_housing: "住宅：園藝/種植",
       dy_tribal: "友好部族任務",
       dy_treasure_map: "藏寶圖：取得次數",
-      dy_leve: "行會理符：理符承接次數",
-      dy_roulettes: "隨機任務（任務搜尋器）",
+      dy_leve: "理符：可承接次數",
+      dy_roulettes: "任務隨機（Roulette）",
       dy_mini: "金碟遊樂場：小仙人掌彩券",
       dy_island: "無人島開拓：每日"
     };
@@ -553,7 +535,9 @@
       { id: "dy_island", name: () => UI_TEXT.dy_island }
     ];
 
-    // ---------- HKT 時間 ----------
+    // ==========================================================
+    // ✅ HKT 時間（UTC+8）
+    // ==========================================================
     const TZ_OFFSET_MIN = 8 * 60;
     const DAILY_RESET_HOUR = 23, DAILY_RESET_MIN = 0;
     const WEEKLY_RESET_DOW = 2, WEEKLY_RESET_HOUR = 16, WEEKLY_RESET_MIN = 0;
@@ -605,55 +589,68 @@
       return `${mm}分`;
     }
 
-    // ---------- Storage (local fallback + cloud) ----------
-    const LS_KEY = 'ffxiv_todo_local_cache_v1';
+    // ==========================================================
+    // ✅ 本機資料結構
+    // ==========================================================
+    const LS_KEY = 'ffxiv_todo_local_cache_v2_firebase';
     const DEFAULT_DATA = {
       enabled: {
         weekly: Object.fromEntries(WEEKLY_ITEMS.map(x => [x.id, true])),
         daily: Object.fromEntries(DAILY_ITEMS.map(x => [x.id, true]))
       },
-      checked: {} // periodKey -> { itemId: true }
+      checked: {}, // periodKey -> { itemId: true }
+      meta: { updatedAt: 0 } // 本機最後更新時間（ms）
     };
 
+    function structuredCloneSafe(obj) {
+      return JSON.parse(JSON.stringify(obj));
+    }
+
     function mergeWithDefaults(input) {
-      const merged = structuredClone(DEFAULT_DATA);
+      const merged = structuredCloneSafe(DEFAULT_DATA);
       if (input?.enabled) merged.enabled = Object.assign(merged.enabled, input.enabled);
       if (input?.checked) merged.checked = input.checked;
+      if (input?.meta) merged.meta = Object.assign(merged.meta, input.meta);
 
       merged.enabled.weekly ||= {};
       merged.enabled.daily ||= {};
       for (const it of WEEKLY_ITEMS) if (!(it.id in merged.enabled.weekly)) merged.enabled.weekly[it.id] = true;
       for (const it of DAILY_ITEMS) if (!(it.id in merged.enabled.daily)) merged.enabled.daily[it.id] = true;
+
+      merged.meta.updatedAt ||= 0;
       return merged;
     }
 
     function loadLocal() {
       try {
         const raw = localStorage.getItem(LS_KEY);
-        if (!raw) return structuredClone(DEFAULT_DATA);
-        const parsed = JSON.parse(raw);
-        return mergeWithDefaults(parsed);
+        if (!raw) return structuredCloneSafe(DEFAULT_DATA);
+        return mergeWithDefaults(JSON.parse(raw));
       } catch {
-        return structuredClone(DEFAULT_DATA);
+        return structuredCloneSafe(DEFAULT_DATA);
       }
     }
-    function saveLocal() { localStorage.setItem(LS_KEY, JSON.stringify(DATA)); }
+
+    function touchLocalUpdated() {
+      DATA.meta.updatedAt = Date.now();
+    }
+
+    function saveLocal() {
+      localStorage.setItem(LS_KEY, JSON.stringify(DATA));
+    }
 
     let DATA = loadLocal();
 
-    // ---------- Supabase / Auth (Email Magic Link & Discord) ----------
-    let supabaseClient = null;
+    // ==========================================================
+    // ✅ Firebase Auth + Firestore 同步
+    // Firestore 文件：users/{uid}
+    // 結構：{ data: <DATA>, updatedAt: <ms> }
+    // ==========================================================
     let currentUser = null;
-    let currentProvider = null; // Track the current authentication provider
-
-    // ✅ 第一次載入雲端：雲端要當 authoritative（避免空 local 覆蓋雲端）
-    let hasLoadedFromCloud = false;
 
     const authStateEl = document.getElementById('authState');
     const syncStateEl = document.getElementById('syncState');
-    const emailInputEl = document.getElementById('emailInput');
-    const btnSendLink = document.getElementById('btnSendLink');
-    const btnDiscordLogin = document.getElementById('btnDiscordLogin');
+    const btnLogin = document.getElementById('btnLogin');
     const btnLogout = document.getElementById('btnLogout');
 
     function toast(msg) {
@@ -661,300 +658,110 @@
       el.textContent = msg;
       el.style.display = 'block';
       clearTimeout(toast._t);
-      toast._t = setTimeout(() => el.style.display = 'none', 1600);
+      toast._t = setTimeout(() => el.style.display = 'none', 1500);
     }
 
     function setAuthUI() {
       if (currentUser) {
-        const providerName = currentProvider === 'discord' ? 'Discord' : 'Email';
-        authStateEl.textContent = `已登入 (${providerName})`;
+        authStateEl.textContent = '已登入';
+        btnLogin.style.display = 'none';
         btnLogout.style.display = '';
-        btnSendLink.style.display = 'none';
-        btnDiscordLogin.style.display = 'none';
-        emailInputEl.style.display = 'none';
       } else {
         authStateEl.textContent = '未登入';
+        btnLogin.style.display = '';
         btnLogout.style.display = 'none';
-        btnSendLink.style.display = '';
-        btnDiscordLogin.style.display = '';
-        emailInputEl.style.display = '';
       }
     }
 
     function setSyncState(text) { syncStateEl.textContent = text; }
 
-    function cleanUrl() {
-      // 清掉 magic link/其他 query/hash，避免污染下一次
-      history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    // Handle Discord OAuth callback
-    async function handleDiscordCallback() {
-      if (window.location.search.includes('code=') && window.location.search.includes('provider=discord')) {
-        try {
-          setSyncState('正在登入 Discord...');
-          const { data, error } = await supabaseClient.auth.signInWithOAuth({
-            provider: 'discord',
-            options: {
-              redirectTo: FIXED_REDIRECT_TO,
-              scopes: 'identify email'
-            }
-          });
-          
-          if (error) throw error;
-          
-          // Clear the URL after successful login
-          window.history.replaceState({}, document.title, window.location.pathname);
-          await cloudLoadThenMerge();
-          setSyncState('已啟用');
-        } catch (error) {
-          console.error('Discord login error:', error);
-          setSyncState('Discord 登入失敗');
-          toast('Discord 登入失敗，請重試');
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      }
-    }
-
-    // Initialize Discord OAuth2 login
-    async function loginWithDiscord() {
-      if (!supabaseClient) {
-        toast('請先初始化 Supabase');
-        return;
-      }
-      
-      setSyncState('正在連接到 Discord...');
-      
+    async function loginGoogle() {
       try {
-        const { data, error } = await supabaseClient.auth.signInWithOAuth({
-          provider: 'discord',
-          options: {
-            redirectTo: FIXED_REDIRECT_TO,
-            scopes: 'identify email'
-          }
-        });
-        
-        if (error) throw error;
-      } catch (error) {
-        console.error('Discord login error:', error);
-        setSyncState('Discord 登入失敗');
-        toast('Discord 登入失敗，請重試');
-      }
-    }
-
-    async function initSupabase() {
-      const ok = SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes('PASTE_');
-      if (!ok) {
-        setSyncState('未設定 Supabase');
-        return;
-      }
-
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true
-        }
-      });
-
-      // ✅ Magic link 回跳：把 URL 內 session 寫入 localStorage
-      try {
-        const { error } = await supabaseClient.auth.getSessionFromUrl({ storeSession: true });
-        if (error) console.warn('getSessionFromUrl:', error);
+        await signInWithPopup(auth, provider);
       } catch (e) {
-        console.warn('getSessionFromUrl failed:', e);
-      } finally {
-        if (window.location.search || window.location.hash) cleanUrl();
+        console.warn(e);
+        toast('登入失敗（請檢查 Firebase Auth / 授權網域）');
       }
-
-      const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-      }
-      
-      currentUser = session?.user ?? null;
-      
-      // Check if user is authenticated with Discord
-      if (currentUser) {
-        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-        if (!userError && user) {
-          currentProvider = user.app_metadata?.provider || 'email';
-        }
-      }
-      
-      setAuthUI();
-
-      supabaseClient.auth.onAuthStateChange(async (_event, session2) => {
-        currentUser = session2?.user ?? null;
-        
-        if (currentUser) {
-          const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-          if (!userError && user) {
-            currentProvider = user.app_metadata?.provider || 'email';
-          }
-          
-          // Handle Discord OAuth callback if needed
-          if (window.location.search.includes('code=') && window.location.search.includes('provider=discord')) {
-            await handleDiscordCallback();
-          } else {
-            await cloudLoadThenMerge();
-            setSyncState('已啟用');
-          }
-        } else {
-          setSyncState('未啟用');
-        }
-        
-        setAuthUI();
-      });
-
-      if (currentUser) {
-        await cloudLoadThenMerge();
-        setSyncState('已啟用');
-      } else {
-        setSyncState('未啟用');
-      }
-    }
-
-    async function sendMagicLink() {
-      if (!supabaseClient) { toast('請先設定 Supabase'); return; }
-      const email = (emailInputEl.value || '').trim();
-      if (!email) { toast('請輸入 Email'); return; }
-
-      const { error } = await supabaseClient.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: FIXED_REDIRECT_TO
-        }
-      });
-
-      if (error) {
-        console.warn(error);
-        toast('發送失敗（請檢查 Email provider 與 Redirect URLs）');
-        return;
-      }
-
-      toast('已發送登入連結，請到信箱點擊');
     }
 
     async function logout() {
-      if (!supabaseClient) return;
-      await flushCloudSave(); // 先強制存一次，避免登出前丟資料
-      await supabaseClient.auth.signOut();
+      try {
+        await signOut(auth);
+      } catch (e) {
+        console.warn(e);
+      }
       currentUser = null;
-      hasLoadedFromCloud = false;
       setAuthUI();
       setSyncState('未啟用');
       toast('已登出');
     }
 
-    // ---------- Cloud sync ----------
-    function mergeDeep(base, overlay) {
-      const out = structuredClone(base);
-      if (overlay?.enabled) {
-        out.enabled = out.enabled || {};
-        out.enabled.weekly = Object.assign(out.enabled.weekly || {}, overlay.enabled.weekly || {});
-        out.enabled.daily = Object.assign(out.enabled.daily || {}, overlay.enabled.daily || {});
-      }
-      if (overlay?.checked) {
-        out.checked = Object.assign(out.checked || {}, overlay.checked || {});
-      }
-      return mergeWithDefaults(out);
-    }
-
-    async function cloudLoadThenMerge() {
-      if (!supabaseClient || !currentUser) return;
+    async function cloudLoadThenResolve() {
+      if (!currentUser) return;
       setSyncState('同步中…');
 
-      const { data, error } = await supabaseClient
-        .from('ffxiv_todo')
-        .select('data')
-        .eq('user_id', currentUser.id)
-        .maybeSingle();
+      const ref = doc(db, "users", currentUser.uid);
+      const snap = await getDoc(ref);
 
-      if (error) {
-        console.warn(error);
-        setSyncState('讀取失敗');
+      if (!snap.exists()) {
+        // 雲端無資料：把本機推上去
+        await cloudSaveNow(true);
+        setSyncState('已啟用');
         return;
       }
 
-      const cloudData = data?.data ? mergeWithDefaults(data.data) : null;
+      const cloud = snap.data() || {};
+      const cloudData = mergeWithDefaults(cloud.data || {});
+      const cloudUpdatedAt = Number(cloud.updatedAt || 0);
+      const localUpdatedAt = Number(DATA.meta.updatedAt || 0);
 
-      // ✅ 正確策略：
-      // 第一次登入/新裝置：雲端覆蓋本機（避免空 local 覆蓋雲端）
-      // 之後：本機改動可覆蓋雲端（避免 UI 當下改動被舊雲端洗掉）
-      if (cloudData) {
-        if (!hasLoadedFromCloud) {
-          DATA = mergeDeep(DATA, cloudData);
-          hasLoadedFromCloud = true;
-        } else {
-          DATA = mergeDeep(cloudData, DATA);
-        }
+      // 決策：時間較新者勝（避免「本機舊資料蓋掉雲端新資料」）
+      if (cloudUpdatedAt > localUpdatedAt) {
+        DATA = cloudData;
+        saveLocal();
+        renderAll();
+      } else {
+        // 本機較新：推上雲端
+        await cloudSaveNow(true);
       }
-
-      saveLocal();
-      renderAll();
-
-      await cloudSaveDebounced(true);
       setSyncState('已啟用');
     }
 
     let _saveTimer = null;
-
-    async function cloudSaveDebounced(immediate = false) {
-      if (!supabaseClient || !currentUser) return;
-      if (immediate) return cloudSaveNow();
+    function cloudSaveDebounced() {
+      if (!currentUser) return;
       clearTimeout(_saveTimer);
-      _saveTimer = setTimeout(cloudSaveNow, 250);
+      _saveTimer = setTimeout(() => cloudSaveNow(false), 350);
     }
 
-    async function cloudSaveNow() {
-      if (!supabaseClient || !currentUser) return;
-      setSyncState('同步中…');
-
+    async function cloudSaveNow(showToast) {
+      if (!currentUser) return;
       try {
+        setSyncState('同步中…');
+        const ref = doc(db, "users", currentUser.uid);
         const payload = {
-          user_id: currentUser.id,
           data: DATA,
-          updated_at: new Date().toISOString()
+          updatedAt: Date.now()
         };
-
-        const { error } = await supabaseClient
-          .from('ffxiv_todo')
-          .upsert(payload, { onConflict: 'user_id' });
-
-        if (error) throw error;
-        
+        await setDoc(ref, payload, { merge: true });
         setSyncState('已啟用');
-        return true;
-      } catch (error) {
-        console.warn('Cloud save error:', error);
+        if (showToast) toast('已同步雲端');
+      } catch (e) {
+        console.warn(e);
         setSyncState('同步失敗');
-        
-        // If unauthorized, try to refresh the session
-        if (error.message.includes('JWT expired') || error.message.includes('Invalid JWT')) {
-          try {
-            const { data: { session }, error: refreshError } = await supabaseClient.auth.refreshSession();
-            if (!refreshError && session) {
-              // Retry saving after refreshing the session
-              return await cloudSaveNow();
-            }
-          } catch (refreshError) {
-            console.error('Session refresh failed:', refreshError);
-          }
-        }
-        
-        return false;
       }
     }
 
     async function flushCloudSave() {
-      if (!supabaseClient || !currentUser) return;
+      if (!currentUser) return;
       clearTimeout(_saveTimer);
       _saveTimer = null;
-      await cloudSaveNow();
+      await cloudSaveNow(false);
     }
 
-    // ---------- UI refs ----------
+    // ==========================================================
+    // ✅ UI refs
+    // ==========================================================
     const dyPeriodKeyEl = document.getElementById('dyPeriodKey');
     const dyCountdownEl = document.getElementById('dyCountdown');
     const dyListEl = document.getElementById('dyList');
@@ -1004,12 +811,20 @@
         const ck = document.createElement('input');
         ck.type = 'checkbox';
         ck.className = 'ck';
+
+        // ✅ 你問嘅呢行，就係喺「生成 checkbox」呢度
+        ck.dataset.id = it.id;
+
         ck.checked = !!checkedMap[it.id];
-        ck.addEventListener('change', async () => {
+
+        ck.addEventListener('change', () => {
           checkedMap[it.id] = ck.checked;
+
+          touchLocalUpdated();
           saveLocal();
+
           renderChecklistKpi(enabledItems, checkedMap, doneEl, totalEl, pctEl, barEl);
-          await cloudSaveDebounced(false); // ✅ 每次勾選都寫雲端（debounce）
+          cloudSaveDebounced();
         });
 
         const txt = document.createElement('div');
@@ -1049,14 +864,18 @@
 
         const btn = document.createElement('button');
         const isEnabled = !!enabledMap[it.id];
-        btn.className = 'btn ' + (isEnabled ? 'danger' : 'primary');
+        btn.className = 'btn ' + (isEnabled ? 'danger' : (mode === 'weekly' ? 'primary2' : 'primary'));
         btn.textContent = isEnabled ? '移除' : '加入';
-        btn.addEventListener('click', async () => {
+
+        btn.addEventListener('click', () => {
           enabledMap[it.id] = !isEnabled;
+
+          touchLocalUpdated();
           saveLocal();
+
           renderAll();
           renderModal(mode, items, containerEl);
-          await cloudSaveDebounced(false);
+          cloudSaveDebounced();
         });
 
         row.appendChild(nm);
@@ -1082,12 +901,21 @@
     function enableAll(mode) {
       const items = mode === 'daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
       for (const it of items) DATA.enabled[mode][it.id] = true;
-      saveLocal(); renderAll(); cloudSaveDebounced(false);
+
+      touchLocalUpdated();
+      saveLocal();
+      renderAll();
+      cloudSaveDebounced();
     }
+
     function disableAll(mode) {
       const items = mode === 'daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
       for (const it of items) DATA.enabled[mode][it.id] = false;
-      saveLocal(); renderAll(); cloudSaveDebounced(false);
+
+      touchLocalUpdated();
+      saveLocal();
+      renderAll();
+      cloudSaveDebounced();
     }
 
     function uncheckAllThisPeriod(mode) {
@@ -1095,8 +923,13 @@
       const items = mode === 'daily' ? DAILY_ITEMS : WEEKLY_ITEMS;
       const enabledMap = DATA.enabled[mode];
       const enabledItems = items.filter(it => enabledMap[it.id]);
+
       for (const it of enabledItems) delete checkedMap[it.id];
-      saveLocal(); renderAll(); cloudSaveDebounced(false);
+
+      touchLocalUpdated();
+      saveLocal();
+      renderAll();
+      cloudSaveDebounced();
     }
 
     function renderAll() {
@@ -1105,7 +938,9 @@
       renderChecklist('weekly', WEEKLY_ITEMS, wkListEl, wkDoneEl, wkTotalEl, wkPctEl, wkBarEl);
     }
 
-    // ---------- Wire events ----------
+    // ==========================================================
+    // ✅ Wire events
+    // ==========================================================
     document.getElementById('dyManage').addEventListener('click', () => openModal('daily'));
     document.getElementById('wkManage').addEventListener('click', () => openModal('weekly'));
     document.getElementById('dyUncheck').addEventListener('click', () => uncheckAllThisPeriod('daily'));
@@ -1123,50 +958,47 @@
     wkModal.addEventListener('click', (e) => { if (e.target === wkModal) closeModal('weekly'); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeModal('daily'); closeModal('weekly'); } });
 
-    btnSendLink.addEventListener('click', sendMagicLink);
+    btnLogin.addEventListener('click', loginGoogle);
     btnLogout.addEventListener('click', logout);
 
-    // Initialize the application
+    // ==========================================================
+    // ✅ Init + tick
+    // ==========================================================
     renderAll();
-    initSupabase().then(() => {
-      // Add event listener for Discord login button
-      if (btnDiscordLogin) {
-        btnDiscordLogin.addEventListener('click', loginWithDiscord);
-      }
-      
-      // Check for Discord OAuth callback
-      if (window.location.search.includes('code=') && window.location.search.includes('provider=discord')) {
-        handleDiscordCallback();
+    setAuthUI();
+    setSyncState('未啟用');
+
+    onAuthStateChanged(auth, async (user) => {
+      currentUser = user || null;
+      setAuthUI();
+
+      if (currentUser) {
+        await cloudLoadThenResolve();
+      } else {
+        setSyncState('未啟用');
       }
     });
 
-    // tick
     setInterval(() => {
       const now = nowUtcMs();
-      const newDyPk = periodKey('daily', now);
-      const newWkPk = periodKey('weekly', now);
 
       dyCountdownEl.textContent = formatCountdown(nextResetDailyUtcMs(now) - now);
       wkCountdownEl.textContent = formatCountdown(nextResetWeeklyUtcMs(now) - now);
 
+      const newDyPk = periodKey('daily', now);
+      const newWkPk = periodKey('weekly', now);
+
       if (dyPeriodKeyEl.textContent !== newDyPk || wkPeriodKeyEl.textContent !== newWkPk) {
         renderAll();
-        cloudSaveDebounced(false);
+        cloudSaveDebounced();
       }
     }, 1000);
 
-    // 關頁/切背景：補最後一次同步（避免使用者沒按登出就關掉）
+    // 關頁/切背景時補最後一次同步
     window.addEventListener('pagehide', () => { flushCloudSave(); });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') { flushCloudSave(); }
     });
-    
-    // Auto-save every 30 seconds when user is active
-    setInterval(() => {
-      if (currentUser && document.visibilityState === 'visible') {
-        cloudSaveDebounced(false);
-      }
-    }, 30000);
   </script>
 </body>
 
